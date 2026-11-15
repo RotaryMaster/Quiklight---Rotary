@@ -1,13 +1,7 @@
-//! Captura de tela para Wayland — funciona em dois ambientes, sem interferência:
-//!
-//!  * Modo Desktop (KDE Plasma): pede permissão ao KDE (portal ScreenCast) e recebe
-//!    um fluxo de vídeo PipeWire da tela.
-//!  * Modo Gaming (gamescope): conecta direto no fluxo PipeWire que o próprio
-//!    gamescope oferece (sem janela de permissão).
-//!
-//! Em ambos, o `gst-launch-1.0` (GStreamer) lê o fluxo, reduz a imagem para
-//! cap_w x cap_h e entrega pixels crus (RGBx). Se o ambiente mudar (Desktop <-> Gaming),
-//! o programa encerra com erro e o systemd o reinicia já no modo certo.
+//! Windows screen capture through `scrap`, with CPU-side downsampling to RGBx.
+//! Desktop capture depends on the active Windows display and its permissions.
+//! Windows gaming/DRM-protected content and performance are not yet validated.
+//! This module shares the detection model with the Linux implementation.
 
 use anyhow::{anyhow, bail, Result};
 use std::cell::{Cell, RefCell};
@@ -329,7 +323,7 @@ impl Capturer {
         // A cada 2 s confere se o ambiente mudou (Desktop <-> Gaming)
         if !self.alive.load(Ordering::SeqCst) {
             bail!(
-                "A captura foi encerrada. Verifique se `gst-inspect-1.0 pipewiresrc` funciona no terminal."
+                "A captura do Windows foi encerrada. Verifique a disponibilidade da tela e as permissões de captura."
             );
         }
 
@@ -436,7 +430,7 @@ impl Capturer {
 
     fn health(&self) -> Result<()> {
         if !self.alive.load(Ordering::SeqCst) {
-            bail!("A captura foi encerrada. Verifique se `gst-inspect-1.0 pipewiresrc` funciona no terminal.");
+            bail!("A captura do Windows foi encerrada. Verifique a disponibilidade da tela e as permissões de captura.");
         }
         Ok(())
     }
