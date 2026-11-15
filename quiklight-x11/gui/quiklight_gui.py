@@ -2,7 +2,7 @@
 # Quiklight GUI (Qt / PySide6) — janela de configurações + ícone na bandeja
 #   quiklight-gui            abre a janela
 #   quiklight-gui --tray     inicia só o ícone da bandeja
-import copy, json, os, shutil, subprocess, sys, time, tomllib
+import copy, json, os, shutil, subprocess, sys, threading, time, tomllib
 from pathlib import Path
 
 from PySide6.QtCore import Qt, QTimer, QRect, QRectF, QPoint, QPointF, QSize, QStandardPaths, qVersion
@@ -653,40 +653,32 @@ def set_autostart(enabled):
             desktop.replace(parked)
 
 _dev_cache = [0.0, 0]
+_dev_polling = False
 
-def sctl(*a):
-    return subprocess.run(["systemctl", "--user", *a], capture_output=True, text=True)
-
-def is_active():
-    if IS_WIN: return win_running()
-    try: return sctl("is-active", "quiklight").stdout.strip() in ("active", "activating")
-    except Exception: return False
-
-def service_cmd(verb):
-    if IS_WIN: return win_service(verb)
-    try: r = sctl(verb, "quiklight")
-    except Exception as e: return str(e)
-    return None if r.returncode == 0 else (r.stderr.strip() or f"systemctl {verb} falhou")
-
-def journal(n=40):
-    if IS_WIN:
-        try: return "\n".join((win_dir() / "quiklight.log").read_text(errors="replace").splitlines()[-n:])
-        except Exception: return ""
+def _refresh_windows_usb_devices():
+    global _dev_polling
     try:
-        return subprocess.run(["journalctl", "--user", "-u", "quiklight", "-n", str(n), "--no-pager"],
-                              capture_output=True, text=True).stdout
-    except Exception: return ""
+        r = subprocess.run(
+            ["powershell", "-NoProfile", "-Command",
+             "(Get-PnpDevice -PresentOnly -Class USB | Where-Object { $_.InstanceId -like '*VID_1A86&PID_FE07*' } | Measure-Object).Count"],
+            capture_output=True, text=True, timeout=10, creationflags=NOWIN)
+        if r.returncode == 0:
+            _dev_cache[1] = int(r.stdout.strip() or 0)
+    except Exception:
+        pass
+    finally:
+        _dev_polling = False
+
 
 def count_devices():
     if IS_WIN:
-        if time.time() - _dev_cache[0] > 30:
-            try:
-                r = subprocess.run(["powershell", "-NoProfile", "-Command",
-                                    "(Get-PnpDevice -PresentOnly -Class USB | Where-Object { $_.InstanceId -like '*VID_1A86&PID_FE07*' } | Measure-Object).Count"],
-                                   capture_output=True, text=True, timeout=15, creationflags=NOWIN)
-                _dev_cache[1] = int(r.stdout.strip() or 0)
-            except Exception: pass
+        # Device enumeration can launch PowerShell for up to 10 seconds.
+        # Never let it block the Qt GUI or delay starting the LED backend.
+        global _dev_polling
+        if not _dev_polling and time.time() - _dev_cache[0] > 30:
+            _dev_polling = True
             _dev_cache[0] = time.time()
+            threading.Thread(target=_refresh_windows_usb_devices, daemon=True).start()
         return _dev_cache[1]
     s = set()
     base = Path("/sys/bus/hid/devices")
@@ -1860,24 +1852,46 @@ class Win(QMainWindow):
 def windows_session_shutdown(_session_manager):
     if not IS_WIN:
         return
+    # Windows expects a quick response to session-end messages. The old
+    # implementation could time out while killing the backend and then try
+    # to open HID while it was still held by that backend.
     exe = win_dir() / "quiklight.exe"
     if not exe.is_file():
         return
+    log = win_dir() / "shutdown.log"
+    started = time.monotonic()
+    notes = []
     try:
-        subprocess.run(
+        # Do not spawn a PowerShell process or touch the Qt UI here.
+        killed = subprocess.run(
             ["taskkill", "/IM", "quiklight.exe", "/F"],
-            capture_output=True, creationflags=NOWIN, timeout=1.0,
+            capture_output=True, creationflags=NOWIN, timeout=1.5,
         )
-    except (OSError, subprocess.TimeoutExpired):
-        pass
-    try:
-        # Reuse the known-working --off implementation. Do not change HID.
-        subprocess.run(
-            [str(exe), "--off"],
-            capture_output=True, creationflags=NOWIN, timeout=2.0,
+        notes.append("taskkill=" + str(killed.returncode))
+        if killed.returncode != 0:
+            notes.append("taskkill-stderr=" + killed.stderr.decode("utf-8", "replace")[-160:])
+        # Only the known-working, 63-LED legacy protocol is used.
+        off = subprocess.run(
+            [str(exe), "--off"], capture_output=True,
+            creationflags=NOWIN, timeout=2.0,
         )
-    except (OSError, subprocess.TimeoutExpired):
-        pass
+        notes.append("off=" + str(off.returncode))
+        if off.returncode:
+            notes.append("off-stderr=" + off.stderr.decode("utf-8", "replace")[-300:])
+    except subprocess.TimeoutExpired as error:
+        notes.append("timeout=" + str(error.cmd))
+    except Exception as error:
+        notes.append("exception=" + repr(error)[:300])
+    finally:
+        try:
+            win_dir().mkdir(parents=True, exist_ok=True)
+            elapsed_ms = int((time.monotonic() - started) * 1000)
+            with log.open("a", encoding="utf-8") as handle:
+                handle.write(time.strftime("%Y-%m-%d %H:%M:%S") +
+                             " session-end duration-ms=" + str(elapsed_ms) +
+                             " " + " | ".join(notes) + "\n")
+        except OSError:
+            pass
 
 # ───────────────────────── Bandeja ─────────────────────────
 def build_tray(app, win):
@@ -1970,8 +1984,9 @@ def main():
         if not tray_only: sock.write(b"show"); sock.flush(); sock.waitForBytesWritten(300)
         return 0
     ensure_default_presets()
-    win = Win(app); tray = build_tray(app, win)
+    # Launch the LED driver before creating widgets/reading USB inventory.
     if IS_WIN and not is_active(): service_cmd("start")
+    win = Win(app); tray = build_tray(app, win)
     QLocalServer.removeServer(APP_ID); srv = QLocalServer(); srv.listen(APP_ID); conns = []
     def on_conn():
         c = srv.nextPendingConnection(); conns.append(c)
