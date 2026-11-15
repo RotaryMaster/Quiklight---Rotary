@@ -1,4 +1,23 @@
 use serde::Deserialize;
+
+// The GUI historically wrote certain f32 settings as TOML integers. Accept both
+// numeric representations to keep existing user configurations compatible.
+fn deserialize_float_or_integer<'de, D>(deserializer: D) -> Result<f32, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    #[derive(Deserialize)]
+    #[serde(untagged)]
+    enum Number {
+        Float(f32),
+        Integer(i64),
+    }
+    match Number::deserialize(deserializer)? {
+        Number::Float(value) => Ok(value),
+        Number::Integer(value) => Ok(value as f32),
+    }
+}
+
 use std::path::Path;
 
 /// Um trecho de fita: em qual fita (device), em qual lado da tela, quantos LEDs
@@ -85,13 +104,16 @@ pub struct Config {
     /// 0..1: fidelidade da cor dominante à cena (1 = cor real, 0 = cor cheia)
     pub dom_fidelity: f32,
     /// Profundidade (%) das áreas no modo dominante de 4 áreas
+    #[serde(deserialize_with = "deserialize_float_or_integer")]
     pub zone_depth: f32,
     pub gamma_r: f32,
     pub gamma_g: f32,
     pub gamma_b: f32,
     /// Brilho por software em % (100 = normal; acima de 100 realça sem estourar o tom)
+    #[serde(deserialize_with = "deserialize_float_or_integer")]
     pub level: f32,
     /// Limite de potência em % (100 = sem limite)
+    #[serde(deserialize_with = "deserialize_float_or_integer")]
     pub power_limit: f32,
     /// "Melhor acurácia de cores": balanço de branco, gamma por canal e proteção de neutros
     pub accuracy: bool,
@@ -104,6 +126,7 @@ pub struct Config {
     /// Modo música: a luz escurece na batida do som do PC e volta ao normal
     pub music: bool,
     /// Dimming mínimo (%) atingido na batida mais forte
+    #[serde(deserialize_with = "deserialize_float_or_integer")]
     pub music_min: f32,
     /// "dim" (escurece na batida) | "boost" (acende na batida)
     pub music_style: String,
@@ -248,10 +271,19 @@ impl Config {
     }
 
     pub fn load(path: &Path) -> Self {
-        std::fs::read_to_string(path)
-            .ok()
-            .and_then(|s| toml::from_str(&s).ok())
-            .unwrap_or_default()
+        match std::fs::read_to_string(path) {
+            Ok(content) => match toml::from_str(&content) {
+                Ok(config) => config,
+                Err(error) => {
+                    eprintln!("Erro ao interpretar a configuração {}: {error}", path.display());
+                    Self::default()
+                }
+            },
+            Err(error) => {
+                eprintln!("Não foi possível ler a configuração {}: {error}", path.display());
+                Self::default()
+            }
+        }
     }
 
     /// Grava a configuração completa em TOML.
