@@ -610,6 +610,12 @@ def set_autostart(enabled):
     # existing desktop entry just because the toggle is switched on.
     desktop = autostart_desktop_path()
     parked = desktop.with_name(desktop.name + ".disabled-by-quiklight")
+    # Refuse conflicting backups before modifying the running startup setup.
+    if not enabled and desktop.exists() and parked.exists():
+        raise RuntimeError(
+            "Entrada KDE já possui uma cópia desativada; "
+            "não substituirei nenhum arquivo."
+        )
     action = "enable" if enabled else "disable"
     result = subprocess.run(
         ["systemctl", "--user", action, "quiklight.service"],
@@ -644,11 +650,6 @@ def set_autostart(enabled):
         # Reversible: keep the exact entry installed on Bazzite so that
         # re-enabling the toggle does not clobber installer customizations.
         if desktop.exists():
-            if parked.exists():
-                raise RuntimeError(
-                    "Entrada KDE já possui uma cópia desativada; "
-                    "não substituirei nenhum arquivo."
-                )
             desktop.replace(parked)
 
 _dev_cache = [0.0, 0]
