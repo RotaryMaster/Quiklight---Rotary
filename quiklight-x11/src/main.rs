@@ -285,6 +285,12 @@ fn run(cfg0: &Config, config_path: &PathBuf) -> Result<()> {
 
     // Daqui em diante, um pedido de parada apaga as fitas antes de sair
     install_stop_handler();
+    // The GUI runs the Windows backend without a console; Windows console
+    // handlers alone are therefore insufficient for orderly restarts.
+    #[cfg(windows)]
+    let stop_request = config_path.with_file_name("stop.request");
+    #[cfg(windows)]
+    let _ = std::fs::remove_file(&stop_request);
     let start = Instant::now();
     let mut last = start;
     let mut mtime = file_mtime(config_path);
@@ -293,6 +299,11 @@ fn run(cfg0: &Config, config_path: &PathBuf) -> Result<()> {
     let mut last_live = start;
 
     loop {
+        #[cfg(windows)]
+        if stop_request.exists() {
+            let _ = std::fs::remove_file(&stop_request);
+            STOP.store(true, Ordering::SeqCst);
+        }
         if STOP.load(Ordering::SeqCst) {
             blackout(&mut devs, &mut msg_ids, &counts);
             return Ok(());
