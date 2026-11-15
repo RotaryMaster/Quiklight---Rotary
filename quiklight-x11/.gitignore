@@ -1,0 +1,15 @@
+/target/
+/venv/
+**/__pycache__/
+*.log
+*.bak
+*.tmp
+*.local
+.env
+.env.*
+config.toml
+*-backup-*.toml
+*.pem
+*.key
+*.pfx
+*.p12
