@@ -1010,6 +1010,13 @@ class Win(QMainWindow):
         self._apply_watch = QTimer(self)
         self._apply_watch.setInterval(100)
         self._apply_watch.timeout.connect(self._finish_apply)
+        self._service_busy = False
+        self._service_result = None
+        self._service_ok = ""
+        self._exit_requested = False
+        self._service_watch = QTimer(self)
+        self._service_watch.setInterval(100)
+        self._service_watch.timeout.connect(self._finish_service)
         self.live_on = False; self.live_data = b""
         self.live_timer = QTimer(self); self.live_timer.timeout.connect(self.update_live)
         self.music_timer = QTimer(self); self.music_timer.timeout.connect(self.update_music)
@@ -1196,8 +1203,50 @@ class Win(QMainWindow):
         self.update_pending()
         if self.realtime and self.cfg != self.applied:
             self.rt_timer.start(0)
-    def svc(self, verb, ok):
-        e = service_cmd(verb); self.msg(e or ok, bool(e)); self.running = is_active(); self.refresh_status()
+    def svc(self, verb, ok, quit_after=False):
+        if self._service_busy:
+            return
+        if self._apply_busy:
+            if quit_after:
+                self._exit_requested = True
+                self.rt_timer.stop()
+            else:
+                self.msg("Aguarde o término da atualização dos LEDs.")
+            return
+        self.rt_timer.stop()
+        self._service_busy = True
+        self._service_result = None
+        self._service_ok = ok
+        self._exit_requested = quit_after
+        def worker():
+            try: result = service_cmd(verb)
+            except Exception as error: result = str(error)
+            self._service_result = result if result else ""
+        threading.Thread(target=worker, daemon=True, name="quiklight-service").start()
+        self._service_watch.start()
+
+    def _finish_service(self):
+        if self._service_result is None: return
+        self._service_watch.stop()
+        error = self._service_result
+        self._service_busy = False
+        self.running = is_active()
+        self.refresh_status()
+        if error:
+            self.msg(error, True)
+            if self._exit_requested:
+                self._exit_requested = False
+                self.show_window()
+                QMessageBox.warning(self, "QuikLight", error)
+        elif self._exit_requested:
+            self._exit_requested = False
+            self.app.quit()
+        else:
+            self.msg(self._service_ok)
+
+    def quit_from_tray(self):
+        self.svc("stop", "Serviço desligado (fita apagada).", quit_after=True)
+
     def refresh_status(self):
         if hasattr(self, "t_service"):
             self.t_service.set(f'<span style="color:#3cb44b">● {tr("Rodando")}</span>' if self.running else f'<span style="color:#d25050">● {tr("Parado")}</span>')
@@ -1739,7 +1788,9 @@ class Win(QMainWindow):
         self.running = is_active()
         self.refresh_status()
         self.update_pending()
-        if not result and self.realtime and self.cfg != self.applied:
+        if self._exit_requested:
+            self.quit_from_tray()
+        elif not result and self.realtime and self.cfg != self.applied:
             self.rt_timer.start(250)
 
     def changed(self):
@@ -1839,11 +1890,12 @@ def build_tray(app, win):
         menu.addAction(tr("Abrir configurações"), win.show_window)
         menu.addSeparator(); a = menu.addAction("● " + tr("Rodando") if run else "○ " + tr("Parado")); a.setEnabled(False)
         if run:
-            menu.addAction(tr("Desligar"), lambda: service_cmd("stop")); menu.addAction(tr("Reiniciar"), lambda: service_cmd("restart"))
-        else: menu.addAction(tr("Ligar"), lambda: service_cmd("start"))
+            menu.addAction(tr("Desligar"), lambda: win.svc("stop", "Serviço desligado (fita apagada).")); menu.addAction(tr("Reiniciar"), lambda: win.svc("restart", "Serviço reiniciado."))
+        else: menu.addAction(tr("Ligar"), lambda: win.svc("start", "Serviço ligado."))
         sub = menu.addMenu(tr("Presets"))
         for n in list_presets(): sub.addAction(n, lambda _c=False, n=n: apply_preset_by_name(n))
-        menu.addSeparator(); menu.addAction(tr("Sair do ícone"), app.quit)
+        menu.addSeparator()
+        menu.addAction(tr("Sair do ícone"), win.quit_from_tray if IS_WIN else app.quit)
     menu.aboutToShow.connect(rebuild); tray.setContextMenu(menu)
     tray.activated.connect(lambda r: win.show_window() if r == QSystemTrayIcon.ActivationReason.Trigger else None)
     tray.show(); return tray
