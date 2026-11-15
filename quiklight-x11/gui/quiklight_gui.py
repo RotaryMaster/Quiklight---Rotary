@@ -553,6 +553,7 @@ def win_service(verb):
     request = data_dir() / "stop.request"
     def stop():
         running = win_running()
+        forced = False
         if running:
             data_dir().mkdir(parents=True, exist_ok=True)
             request.touch()
@@ -562,6 +563,7 @@ def win_service(verb):
                 time.sleep(0.1)
             if win_running():
                 # The HID write may be stuck; terminate the old process first.
+                forced = True
                 subprocess.run(["taskkill", "/IM", "quiklight.exe", "/F"],
                                capture_output=True, timeout=2, creationflags=NOWIN)
             until = time.monotonic() + 1.5
@@ -570,8 +572,9 @@ def win_service(verb):
                 time.sleep(0.1)
             if win_running():
                 return "O processo QuikLight continua ativo; reinício cancelado para proteger o USB."
-        # If a forced stop retained the last color, try one bounded off frame.
-        if running and exe.exists():
+        # A graceful stop already sends black frames; avoid needless HID init.
+        # Only attempt fallback if the old process required a forced kill.
+        if forced and exe.exists():
             try:
                 result = subprocess.run([str(exe), "--off"], capture_output=True,
                                         timeout=2, creationflags=NOWIN)
