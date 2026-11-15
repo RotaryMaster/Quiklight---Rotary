@@ -219,18 +219,35 @@ fn install_stop_handler() {
 /// Apaga todas as fitas. Repete o quadro preto algumas vezes, com uma pausa curta,
 /// para garantir que a fita realmente apague antes do programa sair.
 fn blackout(devs: &mut [device::Dev], msg_ids: &mut [u8], counts: &[usize]) {
-    for _ in 0..3 {
-        for (i, d) in devs.iter_mut().enumerate() {
-            if counts[i] == 0 {
-                continue;
+    #[cfg(windows)]
+    {
+        // Native turnOffLight is only one HID report. It does not rely on
+        // the old LED count, which may have changed in the configuration.
+        let _ = (msg_ids, counts);
+        for _ in 0..4 {
+            for dev in devs.iter_mut() {
+                if let Err(error) = protocol::turn_off(dev) {
+                    eprintln!("Falha ao desligar LEDs por USB: {error}");
+                }
             }
-            let black = vec![(0u8, 0u8, 0u8); counts[i]];
-            let _ = protocol::send_frame(d, msg_ids[i], &black);
-            msg_ids[i] = msg_ids[i].wrapping_add(1);
+            std::thread::sleep(Duration::from_millis(20));
         }
-        std::thread::sleep(Duration::from_millis(40));
     }
-    eprintln!("Fitas apagadas ao encerrar.");
+    #[cfg(unix)]
+    {
+        for _ in 0..3 {
+            for (i, d) in devs.iter_mut().enumerate() {
+                if counts[i] == 0 {
+                    continue;
+                }
+                let black = vec![(0u8, 0u8, 0u8); counts[i]];
+                let _ = protocol::send_frame(d, msg_ids[i], &black);
+                msg_ids[i] = msg_ids[i].wrapping_add(1);
+            }
+            std::thread::sleep(Duration::from_millis(40));
+        }
+    }
+    eprintln!("Desligamento das fitas solicitado.");
 }
 
 fn file_mtime(p: &PathBuf) -> Option<std::time::SystemTime> {
@@ -481,17 +498,28 @@ fn run(cfg0: &Config, config_path: &PathBuf) -> Result<()> {
 fn turn_off(cfg: &Config) -> Result<()> {
     let counts = cfg.leds_per_device();
     let mut devs = device::open_devices(counts.len(), false)?;
-    for (i, d) in devs.iter_mut().enumerate() {
-        if counts[i] == 0 {
-            continue;
+    #[cfg(windows)]
+    {
+        // Do not issue protocol::init or send stale-length colour frames.
+        for _ in 0..4 {
+            for d in devs.iter_mut() {
+                protocol::turn_off(d)?;
+            }
+            std::thread::sleep(Duration::from_millis(20));
         }
-        let msg_id = protocol::init(d, 255, counts[i])?;
-        let black = vec![(0u8, 0u8, 0u8); counts[i]];
-        let mut id = msg_id;
-        for _ in 0..3 {
-            protocol::send_frame(d, id, &black)?;
-            id = id.wrapping_add(1);
-            std::thread::sleep(Duration::from_millis(40));
+    }
+    #[cfg(unix)]
+    {
+        for (i, d) in devs.iter_mut().enumerate() {
+            if counts[i] == 0 { continue; }
+            let msg_id = protocol::init(d, 255, counts[i])?;
+            let black = vec![(0u8, 0u8, 0u8); counts[i]];
+            let mut id = msg_id;
+            for _ in 0..3 {
+                protocol::send_frame(d, id, &black)?;
+                id = id.wrapping_add(1);
+                std::thread::sleep(Duration::from_millis(40));
+            }
         }
     }
     eprintln!("LEDs off.");
