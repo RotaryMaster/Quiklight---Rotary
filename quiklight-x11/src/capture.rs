@@ -551,7 +551,9 @@ impl Capturer {
                     if detect_mode() != Some(Mode::Gamescope) {
                         bail!("O ambiente mudou enquanto esperava o gamescope");
                     }
-                    thread::sleep(Duration::from_secs(2));
+                    // Poll quickly only while waiting for the Gamescope PipeWire node.
+                    // This does not change the normal capture FPS or GPU workload.
+                    thread::sleep(Duration::from_millis(500));
                 };
                 launch_gst(&src, None, cw, ch, cfg.fps, cfg.capture_limit)?
             }
@@ -572,8 +574,8 @@ impl Capturer {
 
     /// Devolve as cores de cada fita (índice = número da fita).
     pub fn grab(&self, cfg: &Config) -> Result<Vec<Vec<(u8, u8, u8)>>> {
-        // A cada 2 s confere se o ambiente mudou (Desktop <-> Gaming)
-        if self.last_check.get().elapsed() > Duration::from_secs(2) {
+        // A cada 1 s confere se o ambiente mudou (Desktop <-> Gaming)
+        if self.last_check.get().elapsed() > Duration::from_secs(1) {
             self.last_check.set(Instant::now());
             if let Some(m) = detect_mode() {
                 if m != self.mode {
@@ -689,7 +691,7 @@ impl Capturer {
     }
 
     fn health(&self) -> Result<()> {
-        if self.last_check.get().elapsed() > Duration::from_secs(2) {
+        if self.last_check.get().elapsed() > Duration::from_secs(1) {
             self.last_check.set(Instant::now());
             if let Some(m) = detect_mode() {
                 if m != self.mode {
