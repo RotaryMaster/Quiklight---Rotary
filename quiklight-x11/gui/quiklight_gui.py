@@ -1012,6 +1012,7 @@ class Win(QMainWindow):
         self._apply_watch.timeout.connect(self._finish_apply)
         self._service_busy = False
         self._service_result = None
+        self._service_verb = None
         self._service_ok = ""
         self._exit_requested = False
         self._service_watch = QTimer(self)
@@ -1205,6 +1206,9 @@ class Win(QMainWindow):
             self.rt_timer.start(0)
     def svc(self, verb, ok, quit_after=False):
         if self._service_busy:
+            if quit_after:
+                self._exit_requested = True
+                self.rt_timer.stop()
             return
         if self._apply_busy:
             if quit_after:
@@ -1217,6 +1221,7 @@ class Win(QMainWindow):
         self._service_busy = True
         self._service_result = None
         self._service_ok = ok
+        self._service_verb = verb
         self._exit_requested = quit_after
         def worker():
             try: result = service_cmd(verb)
@@ -1232,6 +1237,9 @@ class Win(QMainWindow):
         self._service_busy = False
         self.running = is_active()
         self.refresh_status()
+        if self._exit_requested and self._service_verb != "stop":
+            self.svc("stop", "Serviço desligado (fita apagada).", quit_after=True)
+            return
         if error:
             self.msg(error, True)
             if self._exit_requested:
