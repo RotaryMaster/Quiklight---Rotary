@@ -93,7 +93,7 @@ mod tests {
             init(&mut bytes, 255, leds).unwrap();
             // Third HID report is the setSectionLED packet, preceded by report id 0.
             let section = &bytes[2 * 65..3 * 65];
-            assert_eq!(section[1..6], *b"RB\\x10\\x02\\x86");
+            assert_eq!(&section[1..6], &[b'R', b'B', 16, 2, 134]);
             assert_eq!(section[10], leds as u8);
             assert_eq!(section[11], leds as u8 + 1);
         }
