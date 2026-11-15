@@ -17,3 +17,41 @@ As fontes foram separadas de scripts com caminhos em `$HOME` e as versões atuai
 
 ## Origem
 Baseada no projeto QuikLight para Linux/X11 de `Kevinsillo/quiklight-x11`, cujo README declara licença MIT, com adaptações de Linux/Wayland e Windows. Verificar o arquivo de licença do upstream antes de uma release distribuível.
+
+
+## Inicialização automática no Windows
+Após instalar Python/PySide6 e copiar `quiklight.exe` para `%LOCALAPPDATA%\\Quiklight`:
+
+```powershell
+.\\windows\\setup-startup.ps1 -Mode Install
+```
+
+O script registra `pythonw.exe gui\\quiklight_windows.pyw --tray` na chave **HKCU Run**.
+Não exige administrador; inicia somente **após o login do usuário**, não
+antes do login. O serviço Rust é iniciado pela interface e esta fica oculta
+na bandeja. Remover com `-Mode Remove`; verificar com `-Mode Status`.
+
+## Encerramento e apagamento dos LEDs
+No Windows, a GUI solicita `stop` em `commitDataRequest` (encerramento de
+sessão normal). O backend também sinaliza `STOP` para eventos de
+desligamento/fechamento da console, tentando enviar três quadros pretos.
+A rotina `--off` continua disponível como fallback.
+**Limitação:** não é possível garantir o apagamento de um dispositivo USB em
+corte abrupto de energia, encerramento forçado ou se o dispositivo USB
+desaparecer antes da transmissão. Verificar em reinício e desligamento reais.
+
+## Presets e privacidade
+`scripts/export-public-presets.py` é executado **localmente no Bazzite**,
+gera arquivos sob `~/Downloads/quiklight-presets-publicos/` e não faz upload.
+Remove nomes originais e qualquer campo que não seja um parâmetro visual
+permitido. Após revisão, presets aprovados podem ser colocados na pasta
+`gui/presets-default` do repositório. A interface importa somente chaves
+visuais válidas e mantém configurações de hardware, monitor e LED da máquina
+de destino; nunca substitui presets que já existam.
+
+## Desempenho
+Nenhuma redução de FPS, qualidade de cores ou modos de iluminação é realizada.
+O meter gráfico de áudio só atualiza a cada 100 ms enquanto a página de Música
+está visível, evitando wakeups desnecessários com a GUI minimizada.
+O detector espacial adicional mantém a otimização de só executar quando
+algum eixo for inconclusivo. Ganhos reais de CPU/GPU ainda exigem medição.
