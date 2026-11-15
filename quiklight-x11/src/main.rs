@@ -333,7 +333,12 @@ fn run(cfg0: &Config, config_path: &PathBuf) -> Result<()> {
                     || new.capture_limit != cfg.capture_limit
                     || (needs_capture && new.fps != cfg.fps)
                 {
-                    return Err(anyhow!("A configuração mudou de forma estrutural; reiniciando"));
+                    // A new LED layout requires reinitializing the HID
+                    // device. Keep the existing capture loop alive until the
+                    // GUI performs an orderly stop/restart; do not exit during
+                    // an in-progress slider edit and strand the LEDs.
+                    eprintln!("Configuração estrutural alterada; aguardando reinício controlado pela interface");
+                    continue;
                 }
                 cfg = new;
                 mode = new_mode;
