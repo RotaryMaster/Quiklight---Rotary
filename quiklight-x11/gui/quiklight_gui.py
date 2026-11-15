@@ -1705,6 +1705,67 @@ class Win(QMainWindow):
 # ───────────────────────── Bandeja ─────────────────────────
 def build_tray(app, win):
     tray = QSystemTrayIcon(app_icon(), app); menu = QMenu()
+
+    def quit_with_leds_off():
+        # Only this tray action changes. Leave the known-working Windows
+        # restart path and the Rust USB/HID protocol untouched.
+        if not IS_WIN:
+            app.quit()
+            return
+        if getattr(win, "_tray_exit_in_progress", False):
+            return
+        win._tray_exit_in_progress = True
+        import threading
+        result = []
+
+        def stop_worker():
+            exe = win_dir() / "quiklight.exe"
+            try:
+                if not exe.is_file():
+                    result.append("Executável do serviço não encontrado.")
+                    return
+                # Use the same proven sequence as win_service('stop'):
+                # release the backend HID handle, then run the existing --off.
+                subprocess.run(
+                    ["taskkill", "/IM", "quiklight.exe", "/F"],
+                    capture_output=True, creationflags=NOWIN, timeout=5,
+                )
+                time.sleep(0.2)
+                if win_running():
+                    result.append("O processo quiklight.exe ainda está em execução.")
+                    return
+                off = subprocess.run(
+                    [str(exe), "--off"], capture_output=True, text=True,
+                    creationflags=NOWIN, timeout=8,
+                )
+                if off.returncode != 0:
+                    details = (off.stderr or off.stdout or "").strip()
+                    result.append("Falha ao enviar o desligamento à fita." +
+                                  (("\n" + details[-350:]) if details else ""))
+                else:
+                    result.append(None)
+            except subprocess.TimeoutExpired:
+                result.append("Tempo esgotado na comunicação com o controlador USB.")
+            except Exception as error:
+                result.append("Falha ao desligar a fita: " + str(error))
+
+        # Keep the Qt event loop responsive if a USB HID call stalls.
+        timer = QTimer(win)
+        win._tray_exit_timer = timer
+        def finish():
+            if not result:
+                return
+            timer.stop()
+            win._tray_exit_in_progress = False
+            if result[0] is None:
+                app.quit()
+            else:
+                QMessageBox.warning(win, "Quiklight",
+                                    result[0] + "\nA interface continuará aberta para uma nova tentativa.")
+        timer.timeout.connect(finish)
+        threading.Thread(target=stop_worker, daemon=True).start()
+        timer.start(100)
+
     def rebuild():
         menu.clear(); run = is_active()
         menu.addAction(tr("Abrir configurações"), win.show_window)
@@ -1714,7 +1775,7 @@ def build_tray(app, win):
         else: menu.addAction(tr("Ligar"), lambda: service_cmd("start"))
         sub = menu.addMenu(tr("Presets"))
         for n in list_presets(): sub.addAction(n, lambda _c=False, n=n: apply_preset_by_name(n))
-        menu.addSeparator(); menu.addAction(tr("Sair do ícone"), app.quit)
+        menu.addSeparator(); menu.addAction(tr("Sair do ícone"), quit_with_leds_off)
     menu.aboutToShow.connect(rebuild); tray.setContextMenu(menu)
     tray.activated.connect(lambda r: win.show_window() if r == QSystemTrayIcon.ActivationReason.Trigger else None)
     tray.show(); return tray
