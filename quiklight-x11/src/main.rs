@@ -187,8 +187,34 @@ fn install_stop_handler() {
     }
 }
 
+// Windows also requests console-process shutdown on logoff/restart.
+// The GUI session callback provides a second best-effort path for pythonw/tray.
 #[cfg(windows)]
-fn install_stop_handler() {}
+unsafe extern "system" fn on_stop_windows(kind: u32) -> i32 {
+    use windows_sys::Win32::System::Console::{
+        CTRL_BREAK_EVENT, CTRL_C_EVENT, CTRL_CLOSE_EVENT,
+        CTRL_LOGOFF_EVENT, CTRL_SHUTDOWN_EVENT,
+    };
+    if matches!(
+        kind,
+        CTRL_C_EVENT | CTRL_BREAK_EVENT | CTRL_CLOSE_EVENT |
+        CTRL_LOGOFF_EVENT | CTRL_SHUTDOWN_EVENT
+    ) {
+        STOP.store(true, Ordering::SeqCst);
+        return 1;
+    }
+    0
+}
+
+#[cfg(windows)]
+fn install_stop_handler() {
+    use windows_sys::Win32::System::Console::SetConsoleCtrlHandler;
+    unsafe {
+        if SetConsoleCtrlHandler(Some(on_stop_windows), 1) == 0 {
+            eprintln!("Aviso: não foi possível registrar o encerramento do Windows");
+        }
+    }
+}
 
 /// Apaga todas as fitas. Repete o quadro preto algumas vezes, com uma pausa curta,
 /// para garantir que a fita realmente apague antes do programa sair.
