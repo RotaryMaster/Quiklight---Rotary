@@ -560,7 +560,7 @@ def autostart_enabled():
         try:
             import winreg
             with winreg.OpenKey(winreg.HKEY_CURRENT_USER,
-                                r"Software\\Microsoft\\Windows\\CurrentVersion\\Run") as key:
+                                r"Software\Microsoft\Windows\CurrentVersion\Run") as key:
                 return bool(winreg.QueryValueEx(key, "QuiklightWindows")[0])
         except FileNotFoundError:
             return False
@@ -583,7 +583,7 @@ def autostart_enabled():
 def set_autostart(enabled):
     if IS_WIN:
         import winreg
-        reg_path = r"Software\\Microsoft\\Windows\\CurrentVersion\\Run"
+        reg_path = r"Software\Microsoft\Windows\CurrentVersion\Run"
         with winreg.CreateKeyEx(winreg.HKEY_CURRENT_USER, reg_path, 0,
                                 winreg.KEY_READ | winreg.KEY_SET_VALUE) as key:
             if enabled:
@@ -622,13 +622,13 @@ def set_autostart(enabled):
         desktop.parent.mkdir(parents=True, exist_ok=True)
         command = " ".join(desktop_arg(a) for a in
                            (sys.executable, str(Path(__file__).resolve()), "--tray"))
-        body = ("[Desktop Entry]\\n"
-                "Type=Application\\n"
-                "Name=Quiklight\\n"
-                "Comment=Quiklight minimized to system tray\\n"
-                "Exec=" + command + "\\n"
-                "Terminal=false\\n"
-                "X-KDE-autostart-after=panel\\n")
+        body = ("[Desktop Entry]\n"
+                "Type=Application\n"
+                "Name=Quiklight\n"
+                "Comment=Quiklight minimized to system tray\n"
+                "Exec=" + command + "\n"
+                "Terminal=false\n"
+                "X-KDE-autostart-after=panel\n")
         temp = desktop.with_suffix(".desktop.tmp")
         temp.write_text(body, encoding="utf-8")
         temp.replace(desktop)
