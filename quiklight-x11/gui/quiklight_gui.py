@@ -1702,6 +1702,32 @@ class Win(QMainWindow):
           QPlainTextEdit {{ background:{P}; border:1px solid {B}; border-radius:6px; padding:4px; }}
         """)
 
+
+# Windows session end is different from the tray's explicit Quit command.
+# Qt emits commitDataRequest while Windows is logging off or shutting down.
+# Keep this bounded and silent: the desktop is already being terminated.
+def windows_session_shutdown(_session_manager):
+    if not IS_WIN:
+        return
+    exe = win_dir() / "quiklight.exe"
+    if not exe.is_file():
+        return
+    try:
+        subprocess.run(
+            ["taskkill", "/IM", "quiklight.exe", "/F"],
+            capture_output=True, creationflags=NOWIN, timeout=1.0,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        pass
+    try:
+        # Reuse the known-working --off implementation. Do not change HID.
+        subprocess.run(
+            [str(exe), "--off"],
+            capture_output=True, creationflags=NOWIN, timeout=2.0,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        pass
+
 # ───────────────────────── Bandeja ─────────────────────────
 def build_tray(app, win):
     tray = QSystemTrayIcon(app_icon(), app); menu = QMenu()
@@ -1785,6 +1811,9 @@ def main():
     LANG = read_lang()
     tray_only = "--tray" in sys.argv
     app = QApplication(sys.argv); app.setStyle("Fusion"); app.setQuitOnLastWindowClosed(False)
+    if IS_WIN:
+        # Qt recommends DirectConnection for commitDataRequest.
+        app.commitDataRequest.connect(windows_session_shutdown, Qt.ConnectionType.DirectConnection)
     sock = QLocalSocket(); sock.connectToServer(APP_ID)
     if sock.waitForConnected(300):
         if not tray_only: sock.write(b"show"); sock.flush(); sock.waitForBytesWritten(300)
