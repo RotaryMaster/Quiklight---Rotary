@@ -278,7 +278,15 @@ fn run(cfg0: &Config, config_path: &PathBuf) -> Result<()> {
             let mt = file_mtime(config_path);
             if mt != mtime {
                 mtime = mt;
-                let new = Config::load(config_path);
+                let new = match Config::try_load(config_path) {
+                    Ok(value) => value,
+                    Err(error) => {
+                        // A configuração anterior permanece aplicada; nunca substitua
+                        // silenciosamente os ajustes do usuário pelos padrões.
+                        eprintln!("{error}; mantendo configuração anterior");
+                        continue;
+                    }
+                };
                 let new_mode = new.mode.to_lowercase();
                 let new_needs = !matches!(new_mode.as_str(), "static" | "effect");
                 if new_needs != needs_capture
@@ -294,8 +302,8 @@ fn run(cfg0: &Config, config_path: &PathBuf) -> Result<()> {
                 mode = new_mode;
                 stage.set_slew(cfg.slew);
                 eprintln!(
-                    "Configuração recarregada: modo {} nivel={}% potencia={}% acuracia={}",
-                    mode, cfg.level, cfg.power_limit, cfg.accuracy
+                    "Configuração recarregada: modo {} nivel={}% potencia={}% acuracia={} auto_crop={} crop_speed={}",
+                    mode, cfg.level, cfg.power_limit, cfg.accuracy, cfg.auto_crop, cfg.crop_speed
                 );
             }
         }
