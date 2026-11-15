@@ -267,8 +267,16 @@ def cfg_text(c, preset=False):
     return t
 
 def write_config(c):
+    """Publica a configuração completa sem expor um TOML parcial ao backend."""
     data_dir().mkdir(parents=True, exist_ok=True)
-    config_path().write_text(cfg_text(c))
+    target = config_path()
+    temp = target.with_name(target.name + f".{os.getpid()}.tmp")
+    try:
+        temp.write_text(cfg_text(c), encoding="utf-8")
+        os.replace(temp, target)
+    finally:
+        try: temp.unlink(missing_ok=True)
+        except OSError: pass
 
 # ───────────────────────── Presets ─────────────────────────
 THEMES = [
@@ -1099,7 +1107,11 @@ class Win(QMainWindow):
             self.app.quit()
         else: os.execv(sys.executable, [sys.executable, os.path.abspath(__file__)])
     def on_rt(self, x):
-        self.realtime = x; save_settings(self.realtime, self.active_preset, self.theme_idx); self.update_pending()
+        self.realtime = x
+        save_settings(self.realtime, self.active_preset, self.theme_idx)
+        self.update_pending()
+        if self.realtime and self.cfg != self.applied:
+            self.rt_timer.start(0)
     def svc(self, verb, ok):
         e = service_cmd(verb); self.msg(e or ok, bool(e)); self.running = is_active(); self.refresh_status()
     def refresh_status(self):
