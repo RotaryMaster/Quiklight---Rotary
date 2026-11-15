@@ -539,46 +539,69 @@ def win_dir():
 def win_running():
     try:
         r = subprocess.run(["tasklist", "/FI", "IMAGENAME eq quiklight.exe", "/FO", "CSV", "/NH"],
-                           capture_output=True, text=True, creationflags=NOWIN)
+                           capture_output=True, text=True, timeout=2, creationflags=NOWIN)
         return "quiklight.exe" in r.stdout.lower()
-    except Exception: return False
+    except (OSError, subprocess.TimeoutExpired):
+        # Do not infer 'stopped' from a timed-out process query.
+        raise RuntimeError("Não foi possível verificar o processo QuikLight.")
+
+WIN_SERVICE_LOCK = threading.RLock()
 
 def win_service(verb):
+    """One Windows HID service transition at a time, never overlapping starts."""
     exe = win_dir() / "quiklight.exe"
     request = data_dir() / "stop.request"
     def stop():
-        if win_running():
-            # Ask the Rust loop to send black LED frames before releasing HID.
+        running = win_running()
+        if running:
             data_dir().mkdir(parents=True, exist_ok=True)
             request.touch()
-            until = time.monotonic() + 3.0
-            while win_running() and time.monotonic() < until:
-                time.sleep(0.08)
+            until = time.monotonic() + 1.5
+            while time.monotonic() < until:
+                if not win_running(): break
+                time.sleep(0.1)
             if win_running():
-                # Recovery path if a USB transfer is stuck. Bound the fallback.
+                # The HID write may be stuck; terminate the old process first.
                 subprocess.run(["taskkill", "/IM", "quiklight.exe", "/F"],
-                               capture_output=True, creationflags=NOWIN, timeout=3)
-                try:
-                    subprocess.run([str(exe), "--off"],
-                                   capture_output=True, creationflags=NOWIN, timeout=3)
-                except (OSError, subprocess.TimeoutExpired):
-                    pass
+                               capture_output=True, timeout=2, creationflags=NOWIN)
+            until = time.monotonic() + 1.5
+            while time.monotonic() < until:
+                if not win_running(): break
+                time.sleep(0.1)
+            if win_running():
+                return "O processo QuikLight continua ativo; reinício cancelado para proteger o USB."
+        # If a forced stop retained the last color, try one bounded off frame.
+        if running and exe.exists():
+            try:
+                result = subprocess.run([str(exe), "--off"], capture_output=True,
+                                        timeout=2, creationflags=NOWIN)
+                if result.returncode:
+                    return "Serviço encerrado, mas não foi possível confirmar que os LEDs apagaram."
+            except (OSError, subprocess.TimeoutExpired):
+                return "Serviço encerrado, mas o controlador USB não confirmou o apagamento."
         try: request.unlink(missing_ok=True)
         except OSError: pass
+        return None
     def start():
-        if not exe.exists(): return "quiklight.exe não encontrado em " + str(exe.parent)
+        if not exe.exists():
+            return "quiklight.exe não encontrado em " + str(exe.parent)
+        if win_running():
+            return None
         try: request.unlink(missing_ok=True)
         except OSError: pass
+        win_dir().mkdir(parents=True, exist_ok=True)
         with open(win_dir() / "quiklight.log", "a", encoding="utf-8") as log:
             subprocess.Popen([str(exe)], stdout=log, stderr=log,
                              creationflags=NOWIN | 0x00000008)
         return None
     try:
-        if verb == "start": return None if win_running() else start()
-        if verb == "stop": stop(); return None
-        if verb == "restart":
-            stop()
-            return start()
+        with WIN_SERVICE_LOCK:
+            if verb == "start": return start()
+            if verb == "stop": return stop()
+            if verb == "restart":
+                error = stop()
+                if error: return error
+                return start()
     except Exception as error:
         return f"Falha no serviço Windows: {error}"
     return None
