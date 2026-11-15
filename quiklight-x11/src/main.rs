@@ -213,6 +213,10 @@ fn file_mtime(p: &PathBuf) -> Option<std::time::SystemTime> {
 
 fn run(cfg0: &Config, config_path: &PathBuf) -> Result<()> {
     let mut cfg = cfg0.clone();
+    eprintln!(
+        "AutoCrop Win startup: config={} auto_crop={} crop_speed={}",
+        config_path.display(), cfg.auto_crop, cfg.crop_speed
+    );
     let mut mode = cfg.mode.to_lowercase();
     let needs_capture = !matches!(mode.as_str(), "static" | "effect");
     let capturer = if needs_capture {
