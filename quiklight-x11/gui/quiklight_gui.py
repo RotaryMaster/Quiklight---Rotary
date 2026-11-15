@@ -2,7 +2,7 @@
 # Quiklight GUI (Qt / PySide6) — janela de configurações + ícone na bandeja
 #   quiklight-gui            abre a janela
 #   quiklight-gui --tray     inicia só o ícone da bandeja
-import copy, json, os, shutil, subprocess, sys, time, tomllib
+import copy, json, os, shutil, subprocess, sys, threading, time, tomllib
 from pathlib import Path
 
 from PySide6.QtCore import Qt, QTimer, QRect, QRectF, QPoint, QPointF, QSize, QStandardPaths, qVersion
@@ -545,18 +545,42 @@ def win_running():
 
 def win_service(verb):
     exe = win_dir() / "quiklight.exe"
+    request = data_dir() / "stop.request"
     def stop():
-        subprocess.run(["taskkill", "/IM", "quiklight.exe", "/F"], capture_output=True, creationflags=NOWIN)
-        try: subprocess.run([str(exe), "--off"], capture_output=True, creationflags=NOWIN, timeout=10)
-        except Exception: pass
+        if win_running():
+            # Ask the Rust loop to send black LED frames before releasing HID.
+            data_dir().mkdir(parents=True, exist_ok=True)
+            request.touch()
+            until = time.monotonic() + 3.0
+            while win_running() and time.monotonic() < until:
+                time.sleep(0.08)
+            if win_running():
+                # Recovery path if a USB transfer is stuck. Bound the fallback.
+                subprocess.run(["taskkill", "/IM", "quiklight.exe", "/F"],
+                               capture_output=True, creationflags=NOWIN, timeout=3)
+                try:
+                    subprocess.run([str(exe), "--off"],
+                                   capture_output=True, creationflags=NOWIN, timeout=3)
+                except (OSError, subprocess.TimeoutExpired):
+                    pass
+        try: request.unlink(missing_ok=True)
+        except OSError: pass
     def start():
         if not exe.exists(): return "quiklight.exe não encontrado em " + str(exe.parent)
-        log = open(win_dir() / "quiklight.log", "a")
-        subprocess.Popen([str(exe)], stdout=log, stderr=log, creationflags=NOWIN | 0x00000008)
+        try: request.unlink(missing_ok=True)
+        except OSError: pass
+        with open(win_dir() / "quiklight.log", "a", encoding="utf-8") as log:
+            subprocess.Popen([str(exe)], stdout=log, stderr=log,
+                             creationflags=NOWIN | 0x00000008)
         return None
-    if verb == "start": return None if win_running() else start()
-    if verb == "stop": stop(); return None
-    if verb == "restart": stop(); time.sleep(0.6); return start()
+    try:
+        if verb == "start": return None if win_running() else start()
+        if verb == "stop": stop(); return None
+        if verb == "restart":
+            stop()
+            return start()
+    except Exception as error:
+        return f"Falha no serviço Windows: {error}"
     return None
 
 _dev_cache = [0.0, 0]
@@ -957,6 +981,12 @@ class Win(QMainWindow):
         if is_dynamic(self.cfg["mode"]): self.last_dyn = self.cfg["mode"]
         self.running = is_active(); self.devices = count_devices()
         self.rt_timer = QTimer(self); self.rt_timer.setSingleShot(True); self.rt_timer.timeout.connect(self.apply_now)
+        self._apply_busy = False
+        self._apply_result = None
+        self._apply_snapshot = None
+        self._apply_watch = QTimer(self)
+        self._apply_watch.setInterval(100)
+        self._apply_watch.timeout.connect(self._finish_apply)
         self.live_on = False; self.live_data = b""
         self.live_timer = QTimer(self); self.live_timer.timeout.connect(self.update_live)
         self.music_timer = QTimer(self); self.music_timer.timeout.connect(self.update_music)
@@ -1649,11 +1679,46 @@ class Win(QMainWindow):
         self.active_preset = None; save_settings(self.realtime, None, self.theme_idx); self.sync_all(); self.changed()
         self.msg("Valores padrão carregados (LEDs e fitas mantidos). Clique em Aplicar.")
     def apply_now(self):
-        st = is_structural(self.applied, self.cfg); was = is_active()
-        try: write_config(self.cfg); err = service_cmd("restart") if (st or not was) else None
-        except Exception as e: err = str(e)
-        if not err: self.applied = copy.deepcopy(self.cfg)
-        self.msg(err or "Aplicado.", bool(err)); self.running = is_active(); self.refresh_status(); self.update_pending()
+        # USB reconnection/blackout may take seconds. Never block the Qt thread
+        # while the user edits LED segment lengths in realtime.
+        if self._apply_busy: return
+        snapshot = copy.deepcopy(self.cfg)
+        st = is_structural(self.applied, snapshot)
+        try: write_config(snapshot)
+        except Exception as error:
+            self.msg(str(error), True)
+            return
+        was = is_active()
+        if not st and was:
+            self.applied = snapshot
+            self.msg("Aplicado.")
+            self.update_pending()
+            return
+        self._apply_busy = True
+        self._apply_result = None
+        self._apply_snapshot = snapshot
+        def worker():
+            try: result = service_cmd("restart" if was else "start")
+            except Exception as error: result = str(error)
+            self._apply_result = result if result else ""
+        threading.Thread(target=worker, daemon=True, name="quiklight-restart").start()
+        self._apply_watch.start()
+
+    def _finish_apply(self):
+        if self._apply_result is None: return
+        self._apply_watch.stop()
+        result = self._apply_result
+        self._apply_busy = False
+        if not result:
+            self.applied = self._apply_snapshot
+        self._apply_snapshot = None
+        self.msg(result or "Aplicado.", bool(result))
+        self.running = is_active()
+        self.refresh_status()
+        self.update_pending()
+        if not result and self.realtime and self.cfg != self.applied:
+            self.rt_timer.start(250)
+
     def changed(self):
         self.preview.update(); self.update_pending(); self.update_seg_sum(); self.mp_sync()
         if self.realtime and self.cfg != self.applied: self.rt_timer.start(200)
