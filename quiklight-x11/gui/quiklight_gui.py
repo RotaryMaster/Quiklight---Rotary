@@ -5,7 +5,7 @@
 import copy, json, os, shutil, subprocess, sys, threading, time, tomllib
 from pathlib import Path
 
-from PySide6.QtCore import Qt, QTimer, QRect, QRectF, QPoint, QPointF, QSize, QStandardPaths, qVersion
+from PySide6.QtCore import Qt, QTimer, QRect, QRectF, QPoint, QPointF, QSize, QStandardPaths, QAbstractNativeEventFilter, qVersion
 from PySide6.QtGui import QAction, QColor, QConicalGradient, QIcon, QPainter, QPalette, QPen, QPixmap, QBrush, QGuiApplication, QFont
 from PySide6.QtNetwork import QLocalServer, QLocalSocket
 from PySide6.QtWidgets import QInputDialog
@@ -1849,9 +1849,53 @@ class Win(QMainWindow):
 # Windows session end is different from the tray's explicit Quit command.
 # Qt emits commitDataRequest while Windows is logging off or shutting down.
 # Keep this bounded and silent: the desktop is already being terminated.
-def windows_session_shutdown(_session_manager):
+_WINDOWS_SHUTDOWN_REQUEST = 0x0011
+_WINDOWS_SHUTDOWN_CONFIRM = 0x0016
+_windows_shutdown_handled = False
+
+
+def log_windows_shutdown(text):
     if not IS_WIN:
         return
+    try:
+        win_dir().mkdir(parents=True, exist_ok=True)
+        with (win_dir() / "shutdown.log").open("a", encoding="utf-8") as handle:
+            handle.write(time.strftime("%Y-%m-%d %H:%M:%S") +
+                         " pid=" + str(os.getpid()) + " " + str(text)[:600] + "\n")
+    except OSError:
+        pass
+
+
+class WindowsShutdownFilter(QAbstractNativeEventFilter):
+    # Handle the Windows end-of-session notification even when the Qt GUI
+    # is started hidden with --tray. Never suppress Windows' own message.
+    def nativeEventFilter(self, event_type, message):
+        if not IS_WIN:
+            return False
+        try:
+            if bytes(event_type) != b"windows_generic_MSG":
+                return False
+            import ctypes
+            from ctypes import wintypes
+            native = wintypes.MSG.from_address(int(message))
+            if native.message == _WINDOWS_SHUTDOWN_REQUEST:
+                log_windows_shutdown("WM_QUERYENDSESSION received")
+            elif native.message == _WINDOWS_SHUTDOWN_CONFIRM:
+                if native.wParam:
+                    windows_session_shutdown(None)
+                else:
+                    log_windows_shutdown("WM_ENDSESSION cancelled")
+        except Exception as error:
+            log_windows_shutdown("native filter error: " + repr(error))
+        return False
+
+
+def windows_session_shutdown(_session_manager):
+    global _windows_shutdown_handled
+    if not IS_WIN or _windows_shutdown_handled:
+        return
+    _windows_shutdown_handled = True
+    log_windows_shutdown("WM_ENDSESSION confirmed; blackout starting")
     # Windows expects a quick response to session-end messages. The old
     # implementation could time out while killing the backend and then try
     # to open HID while it was still held by that backend.
@@ -1977,8 +2021,12 @@ def main():
     tray_only = "--tray" in sys.argv
     app = QApplication(sys.argv); app.setStyle("Fusion"); app.setQuitOnLastWindowClosed(False)
     if IS_WIN:
-        # Qt recommends DirectConnection for commitDataRequest.
-        app.commitDataRequest.connect(windows_session_shutdown, Qt.ConnectionType.DirectConnection)
+        # commitDataRequest is associated with WM_QUERYENDSESSION.
+        # Microsoft requires quick acknowledgement there; perform USB I/O
+        # later at WM_ENDSESSION, when the Windows session really ends.
+        app.commitDataRequest.connect(
+            lambda manager: log_windows_shutdown("Qt commitDataRequest received"),
+            Qt.ConnectionType.DirectConnection)
     sock = QLocalSocket(); sock.connectToServer(APP_ID)
     if sock.waitForConnected(300):
         if not tray_only: sock.write(b"show"); sock.flush(); sock.waitForBytesWritten(300)
@@ -1986,7 +2034,15 @@ def main():
     ensure_default_presets()
     # Launch the LED driver before creating widgets/reading USB inventory.
     if IS_WIN and not is_active(): service_cmd("start")
-    win = Win(app); tray = build_tray(app, win)
+    win = Win(app)
+    if IS_WIN:
+        # Crucial for tray-only startup: create an invisible top-level HWND
+        # so Windows can deliver WM_QUERYENDSESSION / WM_ENDSESSION.
+        native_hwnd = int(win.winId())
+        app._quiklight_shutdown_filter = WindowsShutdownFilter()
+        app.installNativeEventFilter(app._quiklight_shutdown_filter)
+        log_windows_shutdown("native watcher ready HWND=" + str(native_hwnd))
+    tray = build_tray(app, win)
     QLocalServer.removeServer(APP_ID); srv = QLocalServer(); srv.listen(APP_ID); conns = []
     def on_conn():
         c = srv.nextPendingConnection(); conns.append(c)
