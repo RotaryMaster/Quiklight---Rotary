@@ -446,6 +446,21 @@ impl Capturer {
         for i in 0..2 {
             st.feed(i, obs[i], now, add_ms, rel_ms);
         }
+        // Diagnóstico leve, apenas no Windows e somente com auto_crop ligado.
+        // Não altera o detector e não registra imagens nem configurações privadas.
+        if self.last_check.get().elapsed() >= Duration::from_secs(2) {
+            self.last_check.set(now);
+            let fmt = |o: Obs| -> String {
+                match o {
+                    Obs::Unknown => "?".to_string(),
+                    Obs::Bar(n) => n.to_string(),
+                }
+            };
+            eprintln!(
+                "AutoCrop Win: observado vertical={} horizontal={} | confirmado vertical={} horizontal={}",
+                fmt(obs[0]), fmt(obs[1]), st.cur[0], st.cur[1]
+            );
+        }
         let tgt = [st.cur[1], st.cur[0], st.cur[1], st.cur[0]]; // [esq, topo, dir, baixo]
         for i in 0..4 {
             let d = tgt[i] as f32 - st.sm[i];
