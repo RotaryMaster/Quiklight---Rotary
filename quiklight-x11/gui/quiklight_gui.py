@@ -486,14 +486,45 @@ def apply_preset_data(c, p):
             if k in data: c[k] = type(DEFAULTS[k])(data[k])
 
 def ensure_default_presets():
-    if list_presets(): return
+    """Instala apenas presets ausentes, preservando qualquer personalização."""
     base = read_config()
     def make(bri, smo, fps, th):
         c = copy.deepcopy(base); c.update(brightness=bri, smoothing=smo, fps=fps); apply_color_theme(c, THEMES[th]); return c
-    write_preset("Padrão", make(200, 0.15, 60, 0))
-    write_preset("Suave (filmes)", make(160, 0.5, 30, 3))
-    write_preset("Vivo (jogos)", make(255, 0.05, 60, 1))
-    write_preset("Noturno", make(60, 0.4, 30, 4))
+    for name, bri, smo, fps, th in (
+        ("Padrão", 200, 0.15, 60, 0),
+        ("Suave (filmes)", 160, 0.5, 30, 3),
+        ("Vivo (jogos)", 255, 0.05, 60, 1),
+        ("Noturno", 60, 0.4, 30, 4),
+    ):
+        if not preset_path(name).exists():
+            write_preset(name, make(bri, smo, fps, th))
+    # Presets distribuídos são opcionais e limitados aos parâmetros de efeitos.
+    # Nenhum monitor, identificador USB, caminho local ou chave é importado.
+    bundled = Path(__file__).resolve().parent / "presets-default"
+    visual_keys = (
+        "brightness", "smoothing", "saturation", "gamma", "contrast",
+        "gain_r", "gain_g", "gain_b", "color_mode", "mode",
+        "static_r", "static_g", "static_b", "effect", "effect_speed", "effect_min",
+        "dom_scene", "dom_smooth", "slew", "palette", "palette_random",
+        "dom_vibrance", "dom_fidelity", "zone_depth",
+        "gamma_r", "gamma_g", "gamma_b", "accuracy", "fade_time",
+        "level", "power_limit", "auto_crop", "crop_speed",
+    )
+    for source in sorted(bundled.glob("*.toml")):
+        if preset_path(source.stem).exists():
+            continue
+        try:
+            source_data = tomllib.loads(source.read_text(encoding="utf-8"))
+            if any(key not in visual_keys for key in source_data):
+                continue
+            config = copy.deepcopy(base)
+            for key, value in source_data.items():
+                if key in config and isinstance(value, type(config[key])):
+                    config[key] = value
+            normalize(config)
+            write_preset(source.stem, config)
+        except Exception:
+            continue
 
 def apply_preset_by_name(name):
     p = read_preset(name)
@@ -1724,6 +1755,11 @@ def main():
     LANG = read_lang()
     tray_only = "--tray" in sys.argv
     app = QApplication(sys.argv); app.setStyle("Fusion"); app.setQuitOnLastWindowClosed(False)
+    if IS_WIN:
+        # On a Windows logoff/shutdown request, blank LEDs before the USB device
+        # disappears. Qt's session manager emits this for normal session shutdowns.
+        # This is best effort: a forced power-off cannot be handled in software.
+        app.commitDataRequest.connect(lambda _manager: service_cmd("stop"))
     sock = QLocalSocket(); sock.connectToServer(APP_ID)
     if sock.waitForConnected(300):
         if not tray_only: sock.write(b"show"); sock.flush(); sock.waitForBytesWritten(300)
