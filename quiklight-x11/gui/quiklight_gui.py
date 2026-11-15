@@ -959,7 +959,7 @@ class Win(QMainWindow):
         self.rt_timer = QTimer(self); self.rt_timer.setSingleShot(True); self.rt_timer.timeout.connect(self.apply_now)
         self.live_on = False; self.live_data = b""
         self.live_timer = QTimer(self); self.live_timer.timeout.connect(self.update_live)
-        self.music_timer = QTimer(self); self.music_timer.timeout.connect(self.update_music); self.music_timer.start(100)
+        self.music_timer = QTimer(self); self.music_timer.timeout.connect(self.update_music)
         self.setWindowTitle("Quiklight"); self.setWindowIcon(app_icon())
         self.resize(940, 640); self.setMinimumSize(560, 420)
         root = QWidget(); self.setCentralWidget(root); v = QVBoxLayout(root); v.setContentsMargins(10, 8, 10, 4)
@@ -1462,7 +1462,15 @@ class Win(QMainWindow):
         if i < 0: return
         self.stack.setCurrentIndex(i)
         self.set_live(self.live_on and TABS[i][1] == "Captura")
+        self.update_music_timer()
         if TABS[i][1] == "Hardware": self.refresh_hw()
+    def update_music_timer(self):
+        # Refresh the audio meter only while its page is visible. The DSP,
+        # modes, frame rate and effects remain entirely in the Rust backend.
+        if self.isVisible() and TABS[self.stack.currentIndex()][1] == "Música":
+            if not self.music_timer.isActive(): self.music_timer.start(100)
+        else:
+            self.music_timer.stop()
     def set_live(self, active):
         want = self.runtime_dir() / "quiklight-live.want"
         if active:
@@ -1691,11 +1699,13 @@ class Win(QMainWindow):
         if hasattr(self, "_narrow"): self.fit_side()
         if hasattr(self, "grid_reg"): self.relayout()
     def closeEvent(self, e):
-        if QSystemTrayIcon.isSystemTrayAvailable(): self.set_live(False); e.ignore(); self.hide()
+        if QSystemTrayIcon.isSystemTrayAvailable():
+            self.set_live(False); e.ignore(); self.hide(); self.update_music_timer()
         else: e.accept()
     def show_window(self):
         self.refresh_home(); self.show(); self.raise_(); self.activateWindow()
         self.set_live(self.live_on and TABS[self.stack.currentIndex()][1] == "Captura")
+        self.update_music_timer()
     def apply_theme(self):
         _, dark, bg, panel, acc = WTHEMES[self.theme_idx]; fg = (230, 232, 240) if dark else (30, 32, 40)
         pal = QPalette()
