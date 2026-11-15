@@ -567,9 +567,9 @@ def autostart_enabled():
         except OSError:
             return False
 
-    desktop = autostart_desktop_path()
-    if not desktop.is_file():
-        return False
+    # The service runs at systemd user's default.target in both KDE
+    # Desktop and Gamescope. The KDE tray autostart is independent.
+    # Never require a KDE .desktop file to report service autostart.
     try:
         result = subprocess.run(
             ["systemctl", "--user", "is-enabled", "quiklight.service"],
@@ -578,7 +578,6 @@ def autostart_enabled():
         return result.returncode == 0 and result.stdout.strip() in ("enabled", "enabled-runtime")
     except (OSError, subprocess.TimeoutExpired):
         return False
-
 
 def set_autostart(enabled):
     if IS_WIN:
@@ -604,44 +603,53 @@ def set_autostart(enabled):
                     pass
         return
 
-    def desktop_arg(arg):
-        # Desktop Entry Exec field quoting for special characters in paths.
-        value = str(arg).replace("\\", "\\\\").replace('"', '\\"')
-        value = value.replace("$", "\\$").replace("`", "\\`")
-        return '"' + value + '"'
-
+    # The installed Bazzite Quiklight already uses these exact paths:
+    #   ~/.config/systemd/user/quiklight.service  (driver, also Gamescope)
+    #   ~/.config/autostart/quiklight-gui.desktop (KDE tray only)
+    # Preserve those files. Never create another driver or override an
+    # existing desktop entry just because the toggle is switched on.
     desktop = autostart_desktop_path()
-    if enabled:
-        result = subprocess.run(
-            ["systemctl", "--user", "enable", "quiklight.service"],
-            capture_output=True, text=True, timeout=8,
-        )
-        if result.returncode != 0:
-            raise RuntimeError((result.stderr or result.stdout or
-                                "Não foi possível habilitar quiklight.service.").strip())
-        desktop.parent.mkdir(parents=True, exist_ok=True)
-        command = " ".join(desktop_arg(a) for a in
-                           (sys.executable, str(Path(__file__).resolve()), "--tray"))
-        body = ("[Desktop Entry]\n"
-                "Type=Application\n"
-                "Name=Quiklight\n"
-                "Comment=Quiklight minimized to system tray\n"
-                "Exec=" + command + "\n"
-                "Terminal=false\n"
-                "X-KDE-autostart-after=panel\n")
-        temp = desktop.with_suffix(".desktop.tmp")
-        temp.write_text(body, encoding="utf-8")
-        temp.replace(desktop)
-    else:
-        result = subprocess.run(
-            ["systemctl", "--user", "disable", "quiklight.service"],
-            capture_output=True, text=True, timeout=8,
-        )
-        if result.returncode != 0:
-            raise RuntimeError((result.stderr or result.stdout or
-                                "Não foi possível desabilitar quiklight.service.").strip())
-        desktop.unlink(missing_ok=True)
+    parked = desktop.with_name(desktop.name + ".disabled-by-quiklight")
+    action = "enable" if enabled else "disable"
+    result = subprocess.run(
+        ["systemctl", "--user", action, "quiklight.service"],
+        capture_output=True, text=True, timeout=8,
+    )
+    if result.returncode != 0:
+        raise RuntimeError((result.stderr or result.stdout or
+                            "Não foi possível configurar quiklight.service.").strip())
 
+    if enabled:
+        if not desktop.exists() and parked.exists():
+            parked.replace(desktop)  # Restore original KDE autostart untouched.
+        elif not desktop.exists():
+            # Only recreate the tray entry if it is truly absent. Use the
+            # wrapper installed by Quiklight instead of launching a copy of
+            # the driver or depending on the current Git checkout's path.
+            wrapper = Path.home() / ".local" / "bin" / "quiklight-gui"
+            if wrapper.is_file():
+                desktop.parent.mkdir(parents=True, exist_ok=True)
+                executable = str(wrapper).replace("\\", "\\\\").replace('"', '\\"')
+                desktop.write_text(
+                    "[Desktop Entry]\n"
+                    "Type=Application\n"
+                    "Name=Quiklight (bandeja)\n"
+                    'Exec="' + executable + '" --tray\n'
+                    "Icon=preferences-desktop-display\n"
+                    "Terminal=false\n"
+                    "X-KDE-autostart-after=panel\n",
+                    encoding="utf-8",
+                )
+    else:
+        # Reversible: keep the exact entry installed on Bazzite so that
+        # re-enabling the toggle does not clobber installer customizations.
+        if desktop.exists():
+            if parked.exists():
+                raise RuntimeError(
+                    "Entrada KDE já possui uma cópia desativada; "
+                    "não substituirei nenhum arquivo."
+                )
+            desktop.replace(parked)
 
 _dev_cache = [0.0, 0]
 
