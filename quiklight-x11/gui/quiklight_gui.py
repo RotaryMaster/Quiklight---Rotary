@@ -124,6 +124,24 @@ TR.update({
     "Escolha o estilo. Quanto menor o mínimo, mais forte o efeito. Aumente a sensibilidade se a luz quase não reage.": ("On the beat the lighting dims down to the minimum and returns to normal. The lower the value, the stronger the pulse.", "En el golpe la iluminación se atenúa hasta el mínimo y vuelve a la normalidad. Cuanto menor el valor, más fuerte el pulso."),
 })
 
+TR.update({
+    "Iniciar automaticamente com o sistema (minimizado na bandeja)": (
+        "Start automatically with the system (minimized to tray)",
+        "Iniciar automáticamente con el sistema (minimizado en la bandeja)"),
+    "Inicia depois de entrar na conta Windows.": (
+        "Starts after signing in to Windows.",
+        "Se inicia después de iniciar sesión en Windows."),
+    "Inicia a interface na bandeja e o serviço de LEDs ao entrar no KDE.": (
+        "Starts the tray interface and LED service when signing in to KDE.",
+        "Inicia la interfaz en la bandeja y el servicio LED al entrar en KDE."),
+    "Inicialização automática ativada para o próximo login.": (
+        "Automatic startup enabled for the next sign-in.",
+        "Inicio automático activado para el próximo inicio de sesión."),
+    "Inicialização automática desativada.": (
+        "Automatic startup disabled.",
+        "Inicio automático desactivado."),
+})
+
 def tr(s):
     if LANG == "pt": return s
     t = TR.get(s)
@@ -527,6 +545,103 @@ def win_service(verb):
     if verb == "stop": stop(); return None
     if verb == "restart": stop(); time.sleep(0.6); return start()
     return None
+
+
+# Autostart is a GUI setting, not a part of the LED configuration/presets.
+# Windows: HKCU Run (no administrator or PowerShell policy changes).
+# KDE/Linux: XDG autostart for the tray + systemd user service for the LEDs.
+def autostart_desktop_path():
+    config_home = Path(os.environ.get("XDG_CONFIG_HOME") or Path.home() / ".config")
+    return config_home / "autostart" / "quiklight-gui.desktop"
+
+
+def autostart_enabled():
+    if IS_WIN:
+        try:
+            import winreg
+            with winreg.OpenKey(winreg.HKEY_CURRENT_USER,
+                                r"Software\\Microsoft\\Windows\\CurrentVersion\\Run") as key:
+                return bool(winreg.QueryValueEx(key, "QuiklightWindows")[0])
+        except FileNotFoundError:
+            return False
+        except OSError:
+            return False
+
+    desktop = autostart_desktop_path()
+    if not desktop.is_file():
+        return False
+    try:
+        result = subprocess.run(
+            ["systemctl", "--user", "is-enabled", "quiklight.service"],
+            capture_output=True, text=True, timeout=3,
+        )
+        return result.returncode == 0 and result.stdout.strip() in ("enabled", "enabled-runtime")
+    except (OSError, subprocess.TimeoutExpired):
+        return False
+
+
+def set_autostart(enabled):
+    if IS_WIN:
+        import winreg
+        reg_path = r"Software\\Microsoft\\Windows\\CurrentVersion\\Run"
+        with winreg.CreateKeyEx(winreg.HKEY_CURRENT_USER, reg_path, 0,
+                                winreg.KEY_READ | winreg.KEY_SET_VALUE) as key:
+            if enabled:
+                interpreter = Path(sys.executable)
+                pythonw = interpreter.with_name("pythonw.exe")
+                if pythonw.is_file():
+                    interpreter = pythonw
+                launcher = Path(__file__).resolve().with_name("quiklight_windows.pyw")
+                if not launcher.is_file():
+                    raise RuntimeError("Iniciador Windows (.pyw) não encontrado.")
+                args = [str(interpreter), str(launcher), "--tray"]
+                winreg.SetValueEx(key, "QuiklightWindows", 0, winreg.REG_SZ,
+                                  subprocess.list2cmdline(args))
+            else:
+                try:
+                    winreg.DeleteValue(key, "QuiklightWindows")
+                except FileNotFoundError:
+                    pass
+        return
+
+    def desktop_arg(arg):
+        # Desktop Entry Exec field quoting for special characters in paths.
+        value = str(arg).replace("\\", "\\\\").replace('"', '\\"')
+        value = value.replace("$", "\\$").replace("`", "\\`")
+        return '"' + value + '"'
+
+    desktop = autostart_desktop_path()
+    if enabled:
+        result = subprocess.run(
+            ["systemctl", "--user", "enable", "quiklight.service"],
+            capture_output=True, text=True, timeout=8,
+        )
+        if result.returncode != 0:
+            raise RuntimeError((result.stderr or result.stdout or
+                                "Não foi possível habilitar quiklight.service.").strip())
+        desktop.parent.mkdir(parents=True, exist_ok=True)
+        command = " ".join(desktop_arg(a) for a in
+                           (sys.executable, str(Path(__file__).resolve()), "--tray"))
+        body = ("[Desktop Entry]\\n"
+                "Type=Application\\n"
+                "Name=Quiklight\\n"
+                "Comment=Quiklight minimized to system tray\\n"
+                "Exec=" + command + "\\n"
+                "Terminal=false\\n"
+                "X-KDE-autostart-after=panel\\n")
+        temp = desktop.with_suffix(".desktop.tmp")
+        temp.write_text(body, encoding="utf-8")
+        temp.replace(desktop)
+    else:
+        result = subprocess.run(
+            ["systemctl", "--user", "disable", "quiklight.service"],
+            capture_output=True, text=True, timeout=8,
+        )
+        if result.returncode != 0:
+            raise RuntimeError((result.stderr or result.stdout or
+                                "Não foi possível desabilitar quiklight.service.").strip())
+        desktop.unlink(missing_ok=True)
+
 
 _dev_cache = [0.0, 0]
 
@@ -1432,6 +1547,7 @@ class Win(QMainWindow):
         self.stack.setCurrentIndex(i)
         self.set_live(self.live_on and TABS[i][1] == "Captura")
         if TABS[i][1] == "Hardware": self.refresh_hw()
+        if TABS[i][1] == "Sistema": self.refresh_autostart()
     def set_live(self, active):
         want = self.runtime_dir() / "quiklight-live.want"
         if active:
@@ -1536,8 +1652,34 @@ class Win(QMainWindow):
             except Exception: pass
             self.refresh_presets(); self.msg(tr("Preset '{n}' excluído.").format(n=n))
 
+    def refresh_autostart(self):
+        if not hasattr(self, "autostart_cb"):
+            return
+        self.autostart_cb.blockSignals(True)
+        self.autostart_cb.setChecked(autostart_enabled())
+        self.autostart_cb.blockSignals(False)
+
+    def on_autostart_toggle(self, enabled):
+        try:
+            set_autostart(bool(enabled))
+            self.refresh_autostart()
+            self.msg("Inicialização automática ativada para o próximo login."
+                     if enabled else "Inicialização automática desativada.")
+        except Exception as error:
+            self.refresh_autostart()
+            QMessageBox.warning(self, "Quiklight", str(error))
+
     def pg_sistema(self, lay):
         self.title(lay, "Sistema")
+        self.autostart_cb = QCheckBox(tr("Iniciar automaticamente com o sistema (minimizado na bandeja)"))
+        self.autostart_cb.setObjectName("switch")
+        self.autostart_cb.setToolTip(tr(
+            "Inicia depois de entrar na conta Windows." if IS_WIN else
+            "Inicia a interface na bandeja e o serviço de LEDs ao entrar no KDE."
+        ))
+        self.refresh_autostart()
+        self.autostart_cb.toggled.connect(self.on_autostart_toggle)
+        lay.addWidget(self.autostart_cb)
         row = QHBoxLayout(); row.addWidget(QLabel(tr("Tema da janela:"))); tc = NoWheelCombo()
         for t in WTHEMES: tc.addItem(tr(t[0]))
         tc.setCurrentIndex(self.theme_idx)
