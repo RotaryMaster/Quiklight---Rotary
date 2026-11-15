@@ -270,17 +270,18 @@ impl Config {
         self.leds_per_device().iter().sum()
     }
 
+    pub fn try_load(path: &Path) -> Result<Self, String> {
+        let content = std::fs::read_to_string(path)
+            .map_err(|error| format!("Não foi possível ler a configuração {}: {error}", path.display()))?;
+        toml::from_str(&content)
+            .map_err(|error| format!("Erro ao interpretar a configuração {}: {error}", path.display()))
+    }
+
     pub fn load(path: &Path) -> Self {
-        match std::fs::read_to_string(path) {
-            Ok(content) => match toml::from_str(&content) {
-                Ok(config) => config,
-                Err(error) => {
-                    eprintln!("Erro ao interpretar a configuração {}: {error}", path.display());
-                    Self::default()
-                }
-            },
+        match Self::try_load(path) {
+            Ok(config) => config,
             Err(error) => {
-                eprintln!("Não foi possível ler a configuração {}: {error}", path.display());
+                eprintln!("{error}");
                 Self::default()
             }
         }
