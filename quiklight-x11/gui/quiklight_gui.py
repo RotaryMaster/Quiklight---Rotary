@@ -670,6 +670,29 @@ def _refresh_windows_usb_devices():
         _dev_polling = False
 
 
+def sctl(*a):
+    return subprocess.run(["systemctl", "--user", *a], capture_output=True, text=True)
+
+def is_active():
+    if IS_WIN: return win_running()
+    try: return sctl("is-active", "quiklight").stdout.strip() in ("active", "activating")
+    except Exception: return False
+
+def service_cmd(verb):
+    if IS_WIN: return win_service(verb)
+    try: r = sctl(verb, "quiklight")
+    except Exception as e: return str(e)
+    return None if r.returncode == 0 else (r.stderr.strip() or f"systemctl {verb} falhou")
+
+def journal(n=40):
+    if IS_WIN:
+        try: return "\n".join((win_dir() / "quiklight.log").read_text(errors="replace").splitlines()[-n:])
+        except Exception: return ""
+    try:
+        return subprocess.run(["journalctl", "--user", "-u", "quiklight", "-n", str(n), "--no-pager"],
+                              capture_output=True, text=True).stdout
+    except Exception: return ""
+
 def count_devices():
     if IS_WIN:
         # Device enumeration can launch PowerShell for up to 10 seconds.
