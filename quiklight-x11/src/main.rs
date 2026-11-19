@@ -93,6 +93,10 @@ struct Cli {
     /// Turn the LEDs off (send a single black frame) and exit
     #[arg(long)]
     off: bool,
+
+    /// Send a static RGB color once and exit without screen capture (for pre-logon startup)
+    #[arg(long, value_name = "R,G,B", value_parser = parse_boot_rgb)]
+    boot_color: Option<(u8, u8, u8)>,
 }
 
 impl Cli {
@@ -152,9 +156,12 @@ fn main() -> Result<()> {
     let mut cfg = Config::load(&config_path);
     cli.apply(&mut cfg);
 
-    // --off doesn't capture the screen; it just blanks the strip and exits
+    // Both one-shot commands work before Windows logon and never capture the screen.
     if cli.off {
         return turn_off(&cfg);
+    }
+    if let Some(rgb) = cli.boot_color {
+        return turn_on_once(&cfg, rgb);
     }
 
     if cli.save {
@@ -434,6 +441,29 @@ fn run(cfg0: &Config, config_path: &PathBuf) -> Result<()> {
     }
 }
 
+/// Send one static frame and exit, leaving the LEDs at that color.
+/// Can run in Windows Session 0 before a user logs on; no GUI, DXGI, sound or Qt.
+/// The regular interactive Quiklight process takes over after user logon.
+/// Uses the same known-working device enumeration/init/frame protocol as --off.
+fn turn_on_once(cfg: &Config, rgb: (u8, u8, u8)) -> Result<()> {
+    let counts = cfg.leds_per_device();
+    let mut devs = device::open_devices(counts.len(), true)?;
+    for (i, d) in devs.iter_mut().enumerate() {
+        if counts[i] == 0 {
+            continue;
+        }
+        let mut id = protocol::init(d, 255, counts[i])?;
+        let frame = vec![rgb; counts[i]];
+        for _ in 0..3 {
+            protocol::send_frame(d, id, &frame)?;
+            id = id.wrapping_add(1);
+            std::thread::sleep(Duration::from_millis(40));
+        }
+    }
+    eprintln!("Boot LED color applied: {},{},{}", rgb.0, rgb.1, rgb.2);
+    Ok(())
+}
+
 /// Send a single all-black frame to every strip and exit (used as the service's ExecStop).
 /// Does not capture the screen, so it works even when no display is available.
 fn turn_off(cfg: &Config) -> Result<()> {
@@ -460,6 +490,19 @@ fn default_config_path() -> PathBuf {
     dirs::data_dir()
         .unwrap_or_default()
         .join("quiklight-rust/config.toml")
+}
+
+/// Parse an explicit RGB triplet, without guessing a brightness level.
+fn parse_boot_rgb(s: &str) -> Result<(u8, u8, u8), String> {
+    let parts: Vec<&str> = s.split(',').collect();
+    if parts.len() != 3 {
+        return Err("expected RGB values as R,G,B (0-255 each)".to_string());
+    }
+    let parse = |v: &str| {
+        v.trim().parse::<u8>()
+            .map_err(|_| format!("invalid RGB channel '{v}' (use 0-255)"))
+    };
+    Ok((parse(parts[0])?, parse(parts[1])?, parse(parts[2])?))
 }
 
 fn parse_resolution(s: &str) -> Result<(usize, usize), String> {
