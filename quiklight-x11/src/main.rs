@@ -93,6 +93,17 @@ struct Cli {
     /// Turn the LEDs off (send a single black frame) and exit
     #[arg(long)]
     off: bool,
+
+    /// Windows: send one solid RGB color to the LEDs, then exit.
+    /// Used for pre-logon lighting; never attempts to capture the secure desktop.
+    #[cfg(windows)]
+    #[arg(long, value_name = "RRGGBB")]
+    boot_color: Option<String>,
+
+    /// Windows: physical LED count for --boot-color.
+    #[cfg(windows)]
+    #[arg(long, requires = "boot_color", value_name = "N")]
+    boot_leds: Option<usize>,
 }
 
 impl Cli {
@@ -141,6 +152,13 @@ impl Cli {
 
 fn main() -> Result<()> {
     let cli = Cli::parse();
+
+    // Before login, the system account has no user configuration or screen
+    // capture. This single-shot mode must therefore run before config loading.
+    #[cfg(windows)]
+    if let Some(ref rgb) = cli.boot_color {
+        return set_boot_color(rgb, cli.boot_leds.unwrap_or(63));
+    }
 
     // --list-monitors works without a config file
     if cli.list_monitors {
@@ -432,6 +450,34 @@ fn run(cfg0: &Config, config_path: &PathBuf) -> Result<()> {
             std::thread::sleep(interval - elapsed);
         }
     }
+}
+
+#[cfg(windows)]
+fn set_boot_color(value: &str, count: usize) -> Result<()> {
+    use anyhow::ensure;
+
+    // Deliberately conservative: same initialization and send_frame
+    // used by --off; USB protocol.rs is unchanged.
+    ensure!((1..=300).contains(&count), "boot LEDs must be between 1 and 300");
+    let hex = value.strip_prefix('#').unwrap_or(value);
+    ensure!(
+        hex.len() == 6 && hex.bytes().all(|b| b.is_ascii_hexdigit()),
+        "boot color must be six hexadecimal digits: RRGGBB"
+    );
+    let red = u8::from_str_radix(&hex[0..2], 16)?;
+    let green = u8::from_str_radix(&hex[2..4], 16)?;
+    let blue = u8::from_str_radix(&hex[4..6], 16)?;
+    let pixels = vec![(red, green, blue); count];
+    let mut devs = device::open_devices(1, true)?;
+    let dev = devs.first_mut().expect("device count checked above");
+    let mut id = protocol::init(dev, 255, count)?;
+    for _ in 0..3 {
+        protocol::send_frame(dev, id, &pixels)?;
+        id = id.wrapping_add(1);
+        std::thread::sleep(Duration::from_millis(40));
+    }
+    eprintln!("Boot light applied: {} LEDs, #{hex}", count);
+    Ok(())
 }
 
 /// Send a single all-black frame to every strip and exit (used as the service's ExecStop).
