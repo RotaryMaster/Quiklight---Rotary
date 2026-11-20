@@ -9,8 +9,8 @@ BIN="$HOME/.local/bin/quiklight"
 GUI="$DATA_HOME/quiklight-gui-qt/quiklight_gui.py"
 LAUNCHER="$HOME/.local/bin/quiklight-gui"
 [[ -f "$BIN" && -f "$GUI" ]] || { echo "Quiklight nao encontrado." >&2; exit 2; }
-if ! grep -Fq 'APP_VERSION = "29-adaptive-exp1"' "$GUI"; then
-  echo "Interface atual nao e a versao 29-adaptive-exp1. Nada alterado." >&2
+if ! grep -Eq 'APP_VERSION = "29-adaptive-exp[12]"' "$GUI"; then
+  echo "Interface atual nao e uma versao adaptativa experimental. Nada alterado." >&2
   exit 2
 fi
 shopt -s nullglob
@@ -26,10 +26,11 @@ ACTIVE=0
 if systemctl --user is-active --quiet quiklight.service 2>/dev/null; then ACTIVE=1; fi
 
 # Preserve the experimental binaries too (allow returning to the experiment).
-EXPERIMENT="$(mktemp -d "$VERSIONS/v29-adaptive-exp1-pre-emergency-$(date +%Y%m%d-%H%M%S)-XXXX")"
+CURRENT_VERSION="$(sed -nE 's/^APP_VERSION[[:space:]]*=[[:space:]]*"([^"]+)".*/\1/p' "$GUI" | head -n 1)"
+EXPERIMENT="$(mktemp -d "$VERSIONS/v${CURRENT_VERSION}-pre-emergency-$(date +%Y%m%d-%H%M%S)-XXXX")"
 cp -p -- "$BIN" "$EXPERIMENT/quiklight"
 cp -p -- "$GUI" "$EXPERIMENT/quiklight_gui.py"
-printf '%s\n' "29-adaptive-exp1" > "$EXPERIMENT/VERSION"
+printf '%s\n' "$CURRENT_VERSION" > "$EXPERIMENT/VERSION"
 
 TMP_BIN="$BIN.emergency-restore.$$"
 TMP_GUI="$GUI.emergency-restore.$$"
