@@ -117,6 +117,8 @@ pub struct Config {
     pub power_limit: f32,
     /// "Melhor acurácia de cores": balanço de branco, gamma por canal e proteção de neutros
     pub accuracy: bool,
+    /// Explicit opt-in. When false the entire adaptive pipeline is bypassed.
+    pub adaptive_fidelity_enabled: bool,
     /// Optional pastel/color fidelity in % (0 = legacy-exact, 100 = strongest).
     #[serde(deserialize_with = "deserialize_float_or_integer")]
     pub adaptive_fidelity: f32,
@@ -203,7 +205,8 @@ impl Default for Config {
             level: 100.0,
             power_limit: 100.0,
             accuracy: false,
-            adaptive_fidelity: 0.0,
+            adaptive_fidelity_enabled: false,
+            adaptive_fidelity: 60.0,
             fade_time: 0.10,
             auto_crop: false,
             crop_speed: 2.0,
@@ -231,6 +234,16 @@ impl Default for Config {
 }
 
 impl Config {
+    /// 0.0 is the legacy pipeline even when a previously saved slider value
+    /// is nonzero. Turning the feature off never resets the saved intensity.
+    pub fn adaptive_fidelity_strength(&self) -> f32 {
+        if self.adaptive_fidelity_enabled {
+            self.adaptive_fidelity.clamp(0.0, 100.0)
+        } else {
+            0.0
+        }
+    }
+
     /// Trechos efetivos: os [[segment]] do arquivo ou, se não houver,
     /// o layout antigo (esquerda, topo, direita e, se > 0, embaixo).
     pub fn segments(&self) -> Vec<Segment> {
@@ -356,7 +369,8 @@ impl Config {
             "level = {:.0}\npower_limit = {:.0}\naccuracy = {}\n",
             self.level, self.power_limit, self.accuracy
         ));
-        t.push_str(&format!("adaptive_fidelity = {:.0}\n", self.adaptive_fidelity.clamp(0.0, 100.0)));
+        t.push_str(&format!("adaptive_fidelity_enabled = {}\nadaptive_fidelity = {:.0}\n",
+            self.adaptive_fidelity_enabled, self.adaptive_fidelity.clamp(0.0, 100.0)));
         t.push_str(&format!("fade_time = {:.2}\n", self.fade_time));
         t.push_str(&format!("auto_crop = {}\ncrop_speed = {:.1}\n", self.auto_crop, self.crop_speed));
         t.push_str(&format!("music = {}\nmusic_min = {:.0}\nmusic_style = \"{}\"\nmusic_sens = {:.2}\nmusic_band = \"{}\"\n", self.music, self.music_min, self.music_style, self.music_sens, self.music_band));
