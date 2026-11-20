@@ -9,7 +9,7 @@ BIN="$HOME/.local/bin/quiklight"
 GUI="$DATA_HOME/quiklight-gui-qt/quiklight_gui.py"
 LAUNCHER="$HOME/.local/bin/quiklight-gui"
 [[ -f "$BIN" && -f "$GUI" ]] || { echo "Quiklight nao encontrado." >&2; exit 2; }
-if ! grep -Eq 'APP_VERSION = "29-adaptive-exp[12]"' "$GUI"; then
+if ! grep -Eq 'APP_VERSION = "29-adaptive-exp[123]"' "$GUI"; then
   echo "Interface atual nao e uma versao adaptativa experimental. Nada alterado." >&2
   exit 2
 fi
