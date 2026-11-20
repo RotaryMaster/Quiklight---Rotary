@@ -14,6 +14,8 @@ mod device;
 mod effects;
 mod output;
 mod protocol;
+#[cfg(windows)]
+mod windows_shutdown;
 
 use anyhow::{anyhow, Result};
 use clap::Parser;
@@ -195,23 +197,32 @@ fn install_stop_handler() {
 }
 
 #[cfg(windows)]
-fn install_stop_handler() {}
+fn install_stop_handler() {
+    windows_shutdown::initialize();
+}
 
 /// Apaga todas as fitas. Repete o quadro preto algumas vezes, com uma pausa curta,
 /// para garantir que a fita realmente apague antes do programa sair.
-fn blackout(devs: &mut [device::Dev], msg_ids: &mut [u8], counts: &[usize]) {
+fn blackout(devs: &mut [device::Dev], msg_ids: &mut [u8], counts: &[usize]) -> bool {
+    let mut success = true;
     for _ in 0..3 {
         for (i, d) in devs.iter_mut().enumerate() {
             if counts[i] == 0 {
                 continue;
             }
             let black = vec![(0u8, 0u8, 0u8); counts[i]];
-            let _ = protocol::send_frame(d, msg_ids[i], &black);
+            if let Err(error) = protocol::send_frame(d, msg_ids[i], &black) {
+                eprintln!("Falha ao apagar fita {}: {}", i + 1, error);
+                success = false;
+            }
             msg_ids[i] = msg_ids[i].wrapping_add(1);
         }
         std::thread::sleep(Duration::from_millis(40));
     }
-    eprintln!("Fitas apagadas ao encerrar.");
+    if success {
+        eprintln!("Fitas apagadas ao encerrar.");
+    }
+    success
 }
 
 fn file_mtime(p: &PathBuf) -> Option<std::time::SystemTime> {
@@ -274,8 +285,19 @@ fn run(cfg0: &Config, config_path: &PathBuf) -> Result<()> {
     let mut last_live = start;
 
     loop {
-        if STOP.load(Ordering::SeqCst) {
-            blackout(&mut devs, &mut msg_ids, &counts);
+        #[cfg(windows)]
+        let ipc_shutdown = windows_shutdown::requested();
+        #[cfg(not(windows))]
+        let ipc_shutdown = false;
+        if STOP.load(Ordering::SeqCst) || ipc_shutdown {
+            if ipc_shutdown {
+                eprintln!("Windows shutdown IPC request received; sending black frames via existing HID handles.");
+            }
+            let success = blackout(&mut devs, &mut msg_ids, &counts);
+            #[cfg(windows)]
+            if ipc_shutdown {
+                windows_shutdown::acknowledge(success);
+            }
             return Ok(());
         }
 
@@ -364,7 +386,7 @@ fn run(cfg0: &Config, config_path: &PathBuf) -> Result<()> {
         let targets = match targets {
             Ok(t) => t,
             Err(e) => {
-                if STOP.load(Ordering::SeqCst) {
+                if STOP.load(Ordering::SeqCst) || ipc_shutdown {
                     blackout(&mut devs, &mut msg_ids, &counts);
                     return Ok(());
                 }
