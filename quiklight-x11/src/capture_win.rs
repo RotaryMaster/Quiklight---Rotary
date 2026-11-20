@@ -419,7 +419,7 @@ impl Capturer {
                         let mn = rf.min(gf).min(bf);
                         let s = if mx > 0.0 { (mx - mn) / mx } else { 0.0 };
                         crate::color_fidelity::vivid_weight(
-                            neutral_floor + s * (mx / 255.0), cfg.adaptive_fidelity,
+                            neutral_floor + s * (mx / 255.0), cfg.adaptive_fidelity_strength(),
                         )
                     } else {
                         1.0
@@ -723,7 +723,7 @@ pub fn process_f(r: f32, g: f32, b: f32, cfg: &Config) -> [f32; 3] {
     let (mut rf, mut gf, mut bf) = (r, g, b);
     let acc = cfg.accuracy;
     let adjustment = crate::color_fidelity::adjustment(
-        r, g, b, cfg.adaptive_fidelity, cfg.saturation,
+        r, g, b, cfg.adaptive_fidelity_strength(), cfg.saturation,
     );
 
     // Proteção de neutros: branco, cinza e transparente não ganham tinta
