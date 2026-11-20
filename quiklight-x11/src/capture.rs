@@ -631,7 +631,9 @@ impl Capturer {
                         let mx = rf.max(gf).max(bf);
                         let mn = rf.min(gf).min(bf);
                         let s = if mx > 0.0 { (mx - mn) / mx } else { 0.0 };
-                        neutral_floor + s * (mx / 255.0)
+                        crate::color_fidelity::vivid_weight(
+                            neutral_floor + s * (mx / 255.0), cfg.adaptive_fidelity,
+                        )
                     } else {
                         1.0
                     };
@@ -928,6 +930,9 @@ pub fn smooth(current: &[(u8, u8, u8)], prev: &[(u8, u8, u8)], factor: f32) -> V
 pub fn process_f(r: f32, g: f32, b: f32, cfg: &Config) -> [f32; 3] {
     let (mut rf, mut gf, mut bf) = (r, g, b);
     let acc = cfg.accuracy;
+    let adjustment = crate::color_fidelity::adjustment(
+        r, g, b, cfg.adaptive_fidelity, cfg.saturation,
+    );
 
     // Proteção de neutros: branco, cinza e transparente não ganham tinta
     if acc {
@@ -949,7 +954,7 @@ pub fn process_f(r: f32, g: f32, b: f32, cfg: &Config) -> [f32; 3] {
     if mx > 0.0 {
         let sat = (mx - mn) / mx;
         if sat > 0.0 {
-            let scale = (sat * cfg.saturation).min(1.0) / sat;
+            let scale = (sat * adjustment.saturation_multiplier).min(1.0) / sat;
             rf = (mx - (mx - rf) * scale).max(0.0);
             gf = (mx - (mx - gf) * scale).max(0.0);
             bf = (mx - (mx - bf) * scale).max(0.0);
@@ -971,17 +976,17 @@ pub fn process_f(r: f32, g: f32, b: f32, cfg: &Config) -> [f32; 3] {
         gf = (gf * cfg.gain_g).clamp(0.0, 1.0);
         bf = (bf * cfg.gain_b).clamp(0.0, 1.0);
         [
-            (rf.powf(gm * cfg.gamma_r.max(0.1)) * 255.0).min(255.0),
-            (gf.powf(gm * cfg.gamma_g.max(0.1)) * 255.0).min(255.0),
-            (bf.powf(gm * cfg.gamma_b.max(0.1)) * 255.0).min(255.0),
+            (rf.powf(gm * cfg.gamma_r.max(0.1)) * 255.0 * adjustment.output_scale).min(255.0),
+            (gf.powf(gm * cfg.gamma_g.max(0.1)) * 255.0 * adjustment.output_scale).min(255.0),
+            (bf.powf(gm * cfg.gamma_b.max(0.1)) * 255.0 * adjustment.output_scale).min(255.0),
         ]
     } else {
         // Clássico: maior = tons médios mais claros
         let inv = 1.0 / gm;
         [
-            (rf.powf(inv) * 255.0).min(255.0),
-            (gf.powf(inv) * 255.0).min(255.0),
-            (bf.powf(inv) * 255.0).min(255.0),
+            (rf.powf(inv) * 255.0 * adjustment.output_scale).min(255.0),
+            (gf.powf(inv) * 255.0 * adjustment.output_scale).min(255.0),
+            (bf.powf(inv) * 255.0 * adjustment.output_scale).min(255.0),
         ]
     }
 }
