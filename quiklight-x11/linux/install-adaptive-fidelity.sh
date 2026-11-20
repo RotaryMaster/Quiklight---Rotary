@@ -148,7 +148,7 @@ fi
 CHANGED=0
 echo
 echo "=== INSTALACAO CONCLUIDA ==="
-echo "Nova GUI: 29-adaptive-exp2 ($COMMIT)"
+echo "Nova GUI: 29-adaptive-exp3 ($COMMIT)"
 echo "Backup anterior: $BACKUP"
 echo "Iluminacao e cores > Acuracia de cores > Ativar fidelidade adaptativa."
 echo "Por padrao DESLIGADA. Ao ligar, primeiro teste intensidade 60%."
