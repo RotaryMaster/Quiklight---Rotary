@@ -1918,47 +1918,60 @@ def windows_session_shutdown(_session_manager):
     if not IS_WIN or _windows_shutdown_handled:
         return
     _windows_shutdown_handled = True
-    log_windows_shutdown("WM_ENDSESSION confirmed; blackout starting")
-    # Windows expects a quick response to session-end messages. The old
-    # implementation could time out while killing the backend and then try
-    # to open HID while it was still held by that backend.
-    exe = win_dir() / "quiklight.exe"
-    if not exe.is_file():
-        return
-    log = win_dir() / "shutdown.log"
+    log_windows_shutdown("WM_ENDSESSION confirmed; requesting native backend blackout")
+    # Do not create ANY subprocess during Windows teardown. Previous releases
+    # invoked taskkill and then --off here, which intermittently failed with
+    # STATUS_DLL_INIT_FAILED (0xC0000142) after Windows started tearing down DLLs.
+    # The running Rust backend already owns the HID handle: signal it directly.
+    # Session-local Win32 events need no extra process, service or DLL install.
     started = time.monotonic()
-    notes = []
+    request = None
+    acknowledged = None
     try:
-        # Do not spawn a PowerShell process or touch the Qt UI here.
-        killed = subprocess.run(
-            ["taskkill", "/IM", "quiklight.exe", "/F"],
-            capture_output=True, creationflags=NOWIN, timeout=1.5,
-        )
-        notes.append("taskkill=" + str(killed.returncode))
-        if killed.returncode != 0:
-            notes.append("taskkill-stderr=" + killed.stderr.decode("utf-8", "replace")[-160:])
-        # Only the known-working, 63-LED legacy protocol is used.
-        off = subprocess.run(
-            [str(exe), "--off"], capture_output=True,
-            creationflags=NOWIN, timeout=2.0,
-        )
-        notes.append("off=" + str(off.returncode))
-        if off.returncode:
-            notes.append("off-stderr=" + off.stderr.decode("utf-8", "replace")[-300:])
-    except subprocess.TimeoutExpired as error:
-        notes.append("timeout=" + str(error.cmd))
+        import ctypes
+        from ctypes import wintypes
+        kernel = ctypes.WinDLL("kernel32", use_last_error=True)
+        kernel.OpenEventW.argtypes = [wintypes.DWORD, wintypes.BOOL, wintypes.LPCWSTR]
+        kernel.OpenEventW.restype = wintypes.HANDLE
+        kernel.SetEvent.argtypes = [wintypes.HANDLE]
+        kernel.SetEvent.restype = wintypes.BOOL
+        kernel.WaitForSingleObject.argtypes = [wintypes.HANDLE, wintypes.DWORD]
+        kernel.WaitForSingleObject.restype = wintypes.DWORD
+        kernel.CloseHandle.argtypes = [wintypes.HANDLE]
+        kernel.CloseHandle.restype = wintypes.BOOL
+
+        # EVENT_MODIFY_STATE for the request; SYNCHRONIZE for the acknowledgment.
+        request = kernel.OpenEventW(0x0002, False,
+                                    r"Local\QuiklightShutdownRequestV1")
+        acknowledged = kernel.OpenEventW(0x00100000, False,
+                                         r"Local\QuiklightShutdownAckV1")
+        if not request or not acknowledged:
+            log_windows_shutdown("shutdown IPC unavailable: request=" +
+                                 str(bool(request)) + " ack=" + str(bool(acknowledged)) +
+                                 " winerr=" + str(ctypes.get_last_error()))
+            return
+        if not kernel.SetEvent(request):
+            log_windows_shutdown("shutdown IPC SetEvent failed: winerr=" +
+                                 str(ctypes.get_last_error()))
+            return
+        # Bounded wait. The backend sends black frames using its existing USB
+        # handle and signals ACK only after all HID writes succeeded.
+        code = kernel.WaitForSingleObject(acknowledged, 2000)
+        elapsed_ms = int((time.monotonic() - started) * 1000)
+        log_windows_shutdown("shutdown IPC ack=" + str(code == 0) +
+                             " wait_code=" + str(code) +
+                             " duration-ms=" + str(elapsed_ms))
     except Exception as error:
-        notes.append("exception=" + repr(error)[:300])
+        log_windows_shutdown("shutdown IPC exception: " + repr(error)[:300])
     finally:
-        try:
-            win_dir().mkdir(parents=True, exist_ok=True)
-            elapsed_ms = int((time.monotonic() - started) * 1000)
-            with log.open("a", encoding="utf-8") as handle:
-                handle.write(time.strftime("%Y-%m-%d %H:%M:%S") +
-                             " session-end duration-ms=" + str(elapsed_ms) +
-                             " " + " | ".join(notes) + "\n")
-        except OSError:
-            pass
+        if IS_WIN:
+            try:
+                if request:
+                    kernel.CloseHandle(request)
+                if acknowledged:
+                    kernel.CloseHandle(acknowledged)
+            except Exception:
+                pass
 
 # ───────────────────────── Bandeja ─────────────────────────
 def build_tray(app, win):
