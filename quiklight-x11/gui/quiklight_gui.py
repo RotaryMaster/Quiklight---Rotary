@@ -17,7 +17,7 @@ from PySide6.QtWidgets import (
 )
 
 APP_ID = "quiklight-gui-qt"
-APP_VERSION = "29-adaptive-exp1"
+APP_VERSION = "29-adaptive-exp2"
 APP_YEAR = "2026"
 CHANGES = "Detecção de barras pretas reescrita: varre as bordas, ignora letras e objetos no centro da tela e volta ao normal quando a imagem reaparece."
 IS_WIN = os.name == "nt"
@@ -50,8 +50,9 @@ TR.update({
     "Detalhes USB: disponíveis apenas no Linux.": ("USB details: available on Linux only.", "Detalles USB: disponibles solo en Linux."),
     "Iluminação e cores": ("Lighting and colors", "Iluminación y colores"),
     "Ativar fidelidade adaptativa (experimental)": ("Enable adaptive fidelity (experimental)", "Activar fidelidad adaptativa (experimental)"),
-    "Intensidade da fidelidade adaptativa (%)": ("Adaptive fidelity strength (%)", "Intensidad de fidelidad adaptativa (%)"),
-    "Desativado = processamento original. Ative e ajuste a intensidade (0-100%). A calibração RGB é preservada.": ("Off = original processing. Enable and adjust strength (0-100%). RGB calibration is preserved.", "Desactivado = procesamiento original. Activa y ajusta la intensidad (0-100%). Se conserva la calibración RGB."),
+    "Fidelidade das cores (%)": ("Color fidelity (%)", "Fidelidad de colores (%)"),
+    "Redução dinâmica de luminosidade (%)": ("Adaptive brightness reduction (%)", "Reducción dinámica de luminosidad (%)"),
+    "Desativado = processamento original. Fidelidade controla saturação e amostragem; luminosidade reduz luz excessiva nas cenas claras. Sua calibração RGB permanece intacta.": ("Off = original processing. Color fidelity controls saturation and sampling; brightness control reduces excessive light in bright scenes. Your RGB calibration is preserved.", "Desactivado = procesamiento original. La fidelidad controla la saturación y el muestreo; la luminosidad reduce el exceso de luz en escenas claras. Se conserva la calibración RGB."),
     "Detectar barras pretas automaticamente (recorta a área para onde há imagem)": ("Detect black bars automatically (crops the area to where the picture is)", "Detectar barras negras automáticamente (recorta el área a donde hay imagen)"),
 })
 
@@ -219,7 +220,7 @@ DEFAULTS = dict(
     music_on_bass=True, music_on_treble=True, music_on_vol=True, music_on_rpm=True,
     palette_random=True, dom_vibrance=0.25, dom_fidelity=0.4, zone_depth=33.0,
     gamma_r=1.0, gamma_g=1.0, gamma_b=1.0, level=100.0, power_limit=100.0,
-    accuracy=False, adaptive_fidelity_enabled=False, adaptive_fidelity=60.0, fade_time=0.10, auto_crop=False, crop_speed=2.0,
+    accuracy=False, adaptive_fidelity_enabled=False, adaptive_fidelity=60.0, adaptive_light=60.0, fade_time=0.10, auto_crop=False, crop_speed=2.0,
 )
 FLOATS = [k for k, v in DEFAULTS.items() if isinstance(v, float)]
 INTS = [k for k, v in DEFAULTS.items() if isinstance(v, int) and not isinstance(v, bool)]
@@ -279,7 +280,7 @@ def cfg_text(c, preset=False):
           f"palette_random = {b(c['palette_random'])}\ndom_vibrance = {c['dom_vibrance']:.2f}\n"
           f"dom_fidelity = {c['dom_fidelity']:.2f}\nzone_depth = {c['zone_depth']:.1f}\n"
           f"gamma_r = {c['gamma_r']:.2f}\ngamma_g = {c['gamma_g']:.2f}\ngamma_b = {c['gamma_b']:.2f}\n"
-          f"level = {c['level']:.1f}\npower_limit = {c['power_limit']:.1f}\naccuracy = {b(c['accuracy'])}\nadaptive_fidelity_enabled = {b(c['adaptive_fidelity_enabled'])}\nadaptive_fidelity = {c['adaptive_fidelity']:.0f}\n"
+          f"level = {c['level']:.1f}\npower_limit = {c['power_limit']:.1f}\naccuracy = {b(c['accuracy'])}\nadaptive_fidelity_enabled = {b(c['adaptive_fidelity_enabled'])}\nadaptive_fidelity = {c['adaptive_fidelity']:.0f}\nadaptive_light = {c['adaptive_light']:.0f}\n"
           f"fade_time = {c['fade_time']:.2f}\nauto_crop = {b(c['auto_crop'])}\ncrop_speed = {c['crop_speed']:.1f}\n"
           f"music = {b(c['music'])}\nmusic_min = {c['music_min']:.1f}\nmusic_style = \"{c['music_style']}\"\nmusic_sens = {c['music_sens']:.2f}\nmusic_band = \"{c['music_band']}\"\nmusic_in_bass = {c['music_in_bass']:.2f}\nmusic_out_bass = {c['music_out_bass']:.2f}\nmusic_in_treble = {c['music_in_treble']:.2f}\nmusic_out_treble = {c['music_out_treble']:.2f}\nmusic_in_vol = {c['music_in_vol']:.2f}\nmusic_out_vol = {c['music_out_vol']:.2f}\nmusic_in_rpm = {c['music_in_rpm']:.2f}\nmusic_out_rpm = {c['music_out_rpm']:.2f}\nmusic_on_bass = {b(c['music_on_bass'])}\nmusic_on_treble = {b(c['music_on_treble'])}\nmusic_on_vol = {b(c['music_on_vol'])}\nmusic_on_rpm = {b(c['music_on_rpm'])}\n")
     for g in c["segment"]:
@@ -1460,10 +1461,13 @@ class Win(QMainWindow):
         self.title(lay, "Acurácia de cores")
         self.check(lay, "Melhor acurácia de cores (balanço de branco, gamma por canal e proteção de neutros)", "accuracy")
         adaptive_toggle = self.check(lay, "Ativar fidelidade adaptativa (experimental)", "adaptive_fidelity_enabled")
-        adaptive_slider = self.slider(self.sgrid(lay), 0, "Intensidade da fidelidade adaptativa (%)", "adaptive_fidelity", 0, 100, 5, "{:.0f}")
-        adaptive_slider.setEnabled(bool(self.cfg["adaptive_fidelity_enabled"]))
-        adaptive_toggle.toggled.connect(adaptive_slider.setEnabled)
-        info = QLabel(tr("Desativado = processamento original. Ative e ajuste a intensidade (0-100%). A calibração RGB é preservada."))
+        adaptive_grid = self.sgrid(lay)
+        adaptive_slider = self.slider(adaptive_grid, 0, "Fidelidade das cores (%)", "adaptive_fidelity", 0, 100, 5, "{:.0f}")
+        adaptive_light_slider = self.slider(adaptive_grid, 1, "Redução dinâmica de luminosidade (%)", "adaptive_light", 0, 100, 5, "{:.0f}")
+        for slider_box in (adaptive_slider, adaptive_light_slider):
+            slider_box.setEnabled(bool(self.cfg["adaptive_fidelity_enabled"]))
+            adaptive_toggle.toggled.connect(slider_box.setEnabled)
+        info = QLabel(tr("Desativado = processamento original. Fidelidade controla saturação e amostragem; luminosidade reduz luz excessiva nas cenas claras. Sua calibração RGB permanece intacta."))
         info.setWordWrap(True)
         lay.addWidget(info)
         lay.addWidget(QLabel(tr("Balanço de branco: se o branco estiver azulado, reduza Azul e Verde.")))
