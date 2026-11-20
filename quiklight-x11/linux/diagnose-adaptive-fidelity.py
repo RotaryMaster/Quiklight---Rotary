@@ -113,6 +113,11 @@ def main() -> None:
         raise RuntimeError("O serviço QuikLight não está ativo. Nada foi alterado.")
     if not cfg_path.is_file() or not runtime.is_dir():
         raise RuntimeError("Configuração ou diretório de execução não encontrado.")
+    gui_path = cfg_path.parent.parent / "quiklight-gui-qt/quiklight_gui.py"
+    if not gui_path.is_file() or 'APP_VERSION = "29-adaptive-exp3"' not in gui_path.read_text(encoding="utf-8"):
+        raise RuntimeError("A interface 29-adaptive-exp3 ainda não está instalada. "
+                           "Atualize pelo instalador antes de testar a redução noturna.")
+    print("Interface experimental v3 detectada.")
     original = cfg_path.read_bytes()
     source = original.decode("utf-8")
     settings = tomllib.loads(source)
