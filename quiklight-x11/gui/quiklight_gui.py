@@ -17,7 +17,7 @@ from PySide6.QtWidgets import (
 )
 
 APP_ID = "quiklight-gui-qt"
-APP_VERSION = "29"
+APP_VERSION = "29-adaptive-exp1"
 APP_YEAR = "2026"
 CHANGES = "Detecção de barras pretas reescrita: varre as bordas, ignora letras e objetos no centro da tela e volta ao normal quando a imagem reaparece."
 IS_WIN = os.name == "nt"
