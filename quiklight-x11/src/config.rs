@@ -122,6 +122,9 @@ pub struct Config {
     /// Optional pastel/color fidelity in % (0 = legacy-exact, 100 = strongest).
     #[serde(deserialize_with = "deserialize_float_or_integer")]
     pub adaptive_fidelity: f32,
+    /// Scene-aware light reduction %, independent of saturation fidelity.
+    #[serde(deserialize_with = "deserialize_float_or_integer")]
+    pub adaptive_light: f32,
     /// Suavização entre cores, em segundos (modos Cores das bordas e Cores selecionadas)
     pub fade_time: f32,
     /// Detecta barras pretas (letterbox/pillarbox) e recorta a área de captura
@@ -207,6 +210,7 @@ impl Default for Config {
             accuracy: false,
             adaptive_fidelity_enabled: false,
             adaptive_fidelity: 60.0,
+            adaptive_light: 60.0,
             fade_time: 0.10,
             auto_crop: false,
             crop_speed: 2.0,
@@ -369,8 +373,9 @@ impl Config {
             "level = {:.0}\npower_limit = {:.0}\naccuracy = {}\n",
             self.level, self.power_limit, self.accuracy
         ));
-        t.push_str(&format!("adaptive_fidelity_enabled = {}\nadaptive_fidelity = {:.0}\n",
-            self.adaptive_fidelity_enabled, self.adaptive_fidelity.clamp(0.0, 100.0)));
+        t.push_str(&format!("adaptive_fidelity_enabled = {}\nadaptive_fidelity = {:.0}\nadaptive_light = {:.0}\n",
+            self.adaptive_fidelity_enabled, self.adaptive_fidelity.clamp(0.0, 100.0),
+            self.adaptive_light.clamp(0.0, 100.0)));
         t.push_str(&format!("fade_time = {:.2}\n", self.fade_time));
         t.push_str(&format!("auto_crop = {}\ncrop_speed = {:.1}\n", self.auto_crop, self.crop_speed));
         t.push_str(&format!("music = {}\nmusic_min = {:.0}\nmusic_style = \"{}\"\nmusic_sens = {:.2}\nmusic_band = \"{}\"\n", self.music, self.music_min, self.music_style, self.music_sens, self.music_band));
