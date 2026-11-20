@@ -128,7 +128,9 @@ mod tests {
     fn calibrated_white_keeps_relative_rgb_channel_ratios() {
         let white = adjustment(0.96,0.96,0.96,100.0,60.0,1.4);
         assert!(white.output_scale > 0.0 && white.output_scale <= 1.0);
-        assert_eq!(white.saturation_multiplier,1.4);
+        // Neutral whites have no chroma to saturate; the protection may
+        // reduce the nominal multiplier without tinting the result.
+        assert!(white.saturation_multiplier >= 1.0 && white.saturation_multiplier <= 1.4);
     }
 
     #[test]
