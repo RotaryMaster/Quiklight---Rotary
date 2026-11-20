@@ -254,7 +254,7 @@ fn run(cfg0: &Config, config_path: &PathBuf) -> Result<()> {
     let mut music = music::Music::new();
 
     eprintln!(
-        "Quiklight v{} (fidelidade adaptativa experimental) — modo {} | {} LEDs em {} fita(s) | fps={} nivel={}% potencia={}% slew={} acuracia={} adaptativa={} intensidade={}% luz={}%",
+        "Quiklight v{} (fidelidade adaptativa experimental) — modo {} | {} LEDs em {} fita(s) | fps={} nivel={}% potencia={}% slew={} acuracia={} adaptativa={} intensidade={}% cenas_claras={}% cenas_escuras={}%",
         env!("CARGO_PKG_VERSION"),
         mode,
         cfg.leds(),
@@ -266,7 +266,8 @@ fn run(cfg0: &Config, config_path: &PathBuf) -> Result<()> {
         cfg.accuracy,
         cfg.adaptive_fidelity_enabled,
         cfg.adaptive_fidelity_strength(),
-        cfg.adaptive_light
+        cfg.adaptive_light_strength(),
+        cfg.adaptive_dark_strength()
     );
 
     // Daqui em diante, um pedido de parada apaga as fitas antes de sair
@@ -314,9 +315,10 @@ fn run(cfg0: &Config, config_path: &PathBuf) -> Result<()> {
                 mode = new_mode;
                 stage.set_slew(cfg.slew);
                 eprintln!(
-                    "Configuração recarregada: modo {} nivel={}% potencia={}% acuracia={} auto_crop={} crop_speed={} adaptativa={} intensidade={}% luz={}%",
+                    "Configuração recarregada: modo {} nivel={}% potencia={}% acuracia={} auto_crop={} crop_speed={} adaptativa={} intensidade={}% cenas_claras={}% cenas_escuras={}%",
                     mode, cfg.level, cfg.power_limit, cfg.accuracy, cfg.auto_crop, cfg.crop_speed,
-                    cfg.adaptive_fidelity_enabled, cfg.adaptive_fidelity_strength(), cfg.adaptive_light
+                    cfg.adaptive_fidelity_enabled, cfg.adaptive_fidelity_strength(),
+                    cfg.adaptive_light_strength(), cfg.adaptive_dark_strength()
                 );
             }
         }
