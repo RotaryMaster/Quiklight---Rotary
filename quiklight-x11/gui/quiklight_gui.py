@@ -49,6 +49,8 @@ TR.update({
     "Sobre": ("About", "Acerca de"), "Versão": ("Version", "Versión"),
     "Detalhes USB: disponíveis apenas no Linux.": ("USB details: available on Linux only.", "Detalles USB: disponibles solo en Linux."),
     "Iluminação e cores": ("Lighting and colors", "Iluminación y colores"),
+    "Fidelidade adaptativa de tons suaves (%)": ("Adaptive soft-color fidelity (%)", "Fidelidad adaptativa de colores suaves (%)"),
+    "0 = original. Protege cores pastel do excesso de saturação e luz, sem alterar o balanço RGB calibrado.": ("0 = original. Protects pastel colors from excessive saturation and brightness without changing calibrated RGB white balance.", "0 = original. Protege los colores pastel del exceso de saturación y brillo sin cambiar el balance RGB calibrado."),
     "Detectar barras pretas automaticamente (recorta a área para onde há imagem)": ("Detect black bars automatically (crops the area to where the picture is)", "Detectar barras negras automáticamente (recorta el área a donde hay imagen)"),
 })
 
@@ -216,7 +218,7 @@ DEFAULTS = dict(
     music_on_bass=True, music_on_treble=True, music_on_vol=True, music_on_rpm=True,
     palette_random=True, dom_vibrance=0.25, dom_fidelity=0.4, zone_depth=33.0,
     gamma_r=1.0, gamma_g=1.0, gamma_b=1.0, level=100.0, power_limit=100.0,
-    accuracy=False, fade_time=0.10, auto_crop=False, crop_speed=2.0,
+    accuracy=False, adaptive_fidelity=0.0, fade_time=0.10, auto_crop=False, crop_speed=2.0,
 )
 FLOATS = [k for k, v in DEFAULTS.items() if isinstance(v, float)]
 INTS = [k for k, v in DEFAULTS.items() if isinstance(v, int) and not isinstance(v, bool)]
@@ -276,7 +278,7 @@ def cfg_text(c, preset=False):
           f"palette_random = {b(c['palette_random'])}\ndom_vibrance = {c['dom_vibrance']:.2f}\n"
           f"dom_fidelity = {c['dom_fidelity']:.2f}\nzone_depth = {c['zone_depth']:.1f}\n"
           f"gamma_r = {c['gamma_r']:.2f}\ngamma_g = {c['gamma_g']:.2f}\ngamma_b = {c['gamma_b']:.2f}\n"
-          f"level = {c['level']:.1f}\npower_limit = {c['power_limit']:.1f}\naccuracy = {b(c['accuracy'])}\n"
+          f"level = {c['level']:.1f}\npower_limit = {c['power_limit']:.1f}\naccuracy = {b(c['accuracy'])}\nadaptive_fidelity = {c['adaptive_fidelity']:.0f}\n"
           f"fade_time = {c['fade_time']:.2f}\nauto_crop = {b(c['auto_crop'])}\ncrop_speed = {c['crop_speed']:.1f}\n"
           f"music = {b(c['music'])}\nmusic_min = {c['music_min']:.1f}\nmusic_style = \"{c['music_style']}\"\nmusic_sens = {c['music_sens']:.2f}\nmusic_band = \"{c['music_band']}\"\nmusic_in_bass = {c['music_in_bass']:.2f}\nmusic_out_bass = {c['music_out_bass']:.2f}\nmusic_in_treble = {c['music_in_treble']:.2f}\nmusic_out_treble = {c['music_out_treble']:.2f}\nmusic_in_vol = {c['music_in_vol']:.2f}\nmusic_out_vol = {c['music_out_vol']:.2f}\nmusic_in_rpm = {c['music_in_rpm']:.2f}\nmusic_out_rpm = {c['music_out_rpm']:.2f}\nmusic_on_bass = {b(c['music_on_bass'])}\nmusic_on_treble = {b(c['music_on_treble'])}\nmusic_on_vol = {b(c['music_on_vol'])}\nmusic_on_rpm = {b(c['music_on_rpm'])}\n")
     for g in c["segment"]:
@@ -1456,6 +1458,10 @@ class Win(QMainWindow):
         self.check(lay, "Limitar a captura ao fps", "capture_limit")
         self.title(lay, "Acurácia de cores")
         self.check(lay, "Melhor acurácia de cores (balanço de branco, gamma por canal e proteção de neutros)", "accuracy")
+        self.slider(self.sgrid(lay), 0, "Fidelidade adaptativa de tons suaves (%)", "adaptive_fidelity", 0, 100, 5, "{:.0f}")
+        info = QLabel(tr("0 = original. Protege cores pastel do excesso de saturação e luz, sem alterar o balanço RGB calibrado."))
+        info.setWordWrap(True)
+        lay.addWidget(info)
         lay.addWidget(QLabel(tr("Balanço de branco: se o branco estiver azulado, reduza Azul e Verde.")))
         g = self.sgrid(lay)
         for i, (k, t) in enumerate((("gain_r", "Vermelho"), ("gain_g", "Verde"), ("gain_b", "Azul"))): self.slider(g, i, t, k, 0.2, 1.5, 0.01)
