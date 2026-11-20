@@ -38,7 +38,9 @@ pub fn vivid_weight(original_weight: f32, strength: f32) -> f32 {
 /// Pixel/sampled-zone adaptation occurs in SOURCE RGB space, *before* the
 /// existing gain/gamma white-balance calibration. Neutral-white channel
 /// calibration stays intact; do not try to make the resulting LED RGB equal.
-pub fn adjustment(r: f32, g: f32, b: f32, strength: f32, saturation: f32) -> Adjustment {
+pub fn adjustment(
+    r: f32, g: f32, b: f32, strength: f32, light_reduction: f32, saturation: f32,
+) -> Adjustment {
     let k = (strength / 100.0).clamp(0.0, 1.0);
     if k <= 0.0 {
         return Adjustment {
@@ -57,12 +59,12 @@ pub fn adjustment(r: f32, g: f32, b: f32, strength: f32, saturation: f32) -> Adj
         + 0.7152 * srgb_to_linear(g)
         + 0.0722 * srgb_to_linear(b);
 
-    // Strong adaptation for bright, low-saturation (pastel) areas.
-    // Naturally saturated highlights remain unchanged. Near-neutral white
-    // is only softly dimmed: its calibrated physical white point is retained.
-    let light = smoothstep(0.28, 0.72, luminance);
-    let soft = 1.0 - smoothstep(0.18, 0.72, chroma);
-    let pastel = light * soft;
+    // Preserve chromatic highlights while reducing oversaturation for
+    // moderately bright, low-saturation regions. Smooth transitions avoid
+    // visible threshold-popping in animations.
+    let pastel_light = smoothstep(0.16, 0.66, luminance);
+    let pastel_soft = 1.0 - smoothstep(0.18, 0.72, chroma);
+    let pastel = pastel_light * pastel_soft;
 
     let saturation_multiplier = if saturation > 1.0 {
         1.0 + (saturation - 1.0) * (1.0 - 0.95 * k * pastel)
@@ -70,11 +72,16 @@ pub fn adjustment(r: f32, g: f32, b: f32, strength: f32, saturation: f32) -> Adj
         saturation
     };
 
-    // 12% maximum reduction for neutral whites and up to 30% for pastels,
-    // scaled by user strength. Applied uniformly after white calibration.
-    let colorful = smoothstep(0.02, 0.16, chroma);
-    let max_reduction = 0.12 + 0.18 * colorful;
-    let output_scale = 1.0 - k * pastel * max_reduction;
+    // Independent adaptive brightness knob. Previously the maximum effect
+    // remained under 7% on real anime material even at 100% strength.
+    // Perceptual light control now also acts on moderately bright areas, while
+    // saturated highlights get only a small reduction.
+    // 0% = no additional dimming. 100% = up to 55% on neutral bright areas.
+    let light_knob = (light_reduction / 100.0).clamp(0.0, 1.0);
+    let scene_light = smoothstep(0.08, 0.58, luminance);
+    let color_protection = 1.0 - smoothstep(0.22, 0.75, chroma);
+    let selective = 0.18 + 0.82 * color_protection;
+    let output_scale = 1.0 - 0.55 * k * light_knob * scene_light * selective;
 
     Adjustment { saturation_multiplier, output_scale }
 }
@@ -86,7 +93,7 @@ mod tests {
     #[test]
     fn disabled_is_legacy_identical() {
         for (r,g,b) in [(0.0,0.0,0.0),(0.9,0.7,0.7),(1.0,0.0,0.0)] {
-            let a = adjustment(r,g,b,0.0,1.4);
+            let a = adjustment(r,g,b,0.0,100.0,1.4);
             assert_eq!(a.saturation_multiplier,1.4);
             assert_eq!(a.output_scale,1.0);
         }
@@ -95,27 +102,43 @@ mod tests {
 
     #[test]
     fn pastel_has_more_protection_than_vibrant_red() {
-        let pastel = adjustment(0.95,0.79,0.71,80.0,1.4);
-        let vivid = adjustment(1.0,0.1,0.05,80.0,1.4);
+        let pastel = adjustment(0.95,0.79,0.71,100.0,60.0,1.4);
+        let vivid = adjustment(1.0,0.1,0.05,100.0,60.0,1.4);
         assert!(pastel.saturation_multiplier < vivid.saturation_multiplier);
         assert!(pastel.output_scale < vivid.output_scale);
-        assert_eq!(vivid.output_scale,1.0);
+        assert!(pastel.output_scale < 0.90);
     }
 
     #[test]
-    fn near_white_is_dimmed_less_than_colored_pastel() {
-        let white = adjustment(0.96,0.96,0.96,100.0,1.4);
-        let colored = adjustment(0.95,0.79,0.71,100.0,1.4);
-        assert!(white.output_scale >= 0.88 - 0.0001);
-        assert!(colored.output_scale < white.output_scale);
+    fn light_zero_disables_only_brightness_adaptation() {
+        let color = adjustment(0.95,0.79,0.71,100.0,0.0,1.4);
+        assert_eq!(color.output_scale,1.0);
+        assert!(color.saturation_multiplier < 1.4);
     }
 
     #[test]
-    fn no_gain_amplification_or_negative_output() {
+    fn stronger_light_knob_reduces_output_more() {
+        let a = adjustment(0.95,0.79,0.71,100.0,30.0,1.4);
+        let b = adjustment(0.95,0.79,0.71,100.0,90.0,1.4);
+        assert!(b.output_scale < a.output_scale);
+        assert_eq!(a.saturation_multiplier,b.saturation_multiplier);
+    }
+
+    #[test]
+    fn calibrated_white_keeps_relative_rgb_channel_ratios() {
+        let white = adjustment(0.96,0.96,0.96,100.0,60.0,1.4);
+        assert!(white.output_scale > 0.0 && white.output_scale <= 1.0);
+        assert_eq!(white.saturation_multiplier,1.4);
+    }
+
+    #[test]
+    fn no_amplification_or_negative_output() {
         for k in [0.0,35.0,70.0,100.0,200.0] {
-            let a = adjustment(0.9,0.8,0.8,k,1.4);
-            assert!((0.7..=1.0).contains(&a.output_scale));
-            assert!((1.0..=1.4).contains(&a.saturation_multiplier));
+            for dim in [0.0,60.0,100.0,200.0] {
+                let a = adjustment(0.9,0.8,0.8,k,dim,1.4);
+                assert!((0.45..=1.0).contains(&a.output_scale));
+                assert!((1.0..=1.4).contains(&a.saturation_multiplier));
+            }
         }
     }
 }
