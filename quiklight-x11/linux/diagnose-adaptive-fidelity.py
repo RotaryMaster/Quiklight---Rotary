@@ -128,11 +128,11 @@ def main() -> None:
     # adjacent to adaptive_light so it stays at TOML root (not in [[segment]]).
     # The original bytes remain untouched and are restored by finally.
     if "adaptive_dark" not in settings:
-        m = re.search(r"(?m)^[ \\t]*adaptive_light[ \\t]*=[^\\r\\n]*(?:\\r?\\n|$)", source)
+        m = re.search(r"(?m)^[ \t]*adaptive_light[ \t]*=[^\r\n]*(?:\r?\n|$)", source)
         if not m:
             raise RuntimeError("Não localizei adaptive_light para inserir o padrão de teste.")
-        eol = "\\r\\n" if "\\r\\n" in source else "\\n"
-        insertion = ("" if source[:m.end()].endswith("\\n") else eol) + "adaptive_dark = 0" + eol
+        eol = "\r\n" if "\r\n" in source else "\n"
+        insertion = ("" if source[:m.end()].endswith("\n") else eol) + "adaptive_dark = 0" + eol
         source = source[:m.end()] + insertion + source[m.end():]
         settings = tomllib.loads(source)
         if settings.get("adaptive_dark") != 0:
