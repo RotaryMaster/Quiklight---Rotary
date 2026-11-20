@@ -723,7 +723,8 @@ pub fn process_f(r: f32, g: f32, b: f32, cfg: &Config) -> [f32; 3] {
     let (mut rf, mut gf, mut bf) = (r, g, b);
     let acc = cfg.accuracy;
     let adjustment = crate::color_fidelity::adjustment(
-        r, g, b, cfg.adaptive_fidelity_strength(), cfg.adaptive_light, cfg.saturation,
+        r, g, b, cfg.adaptive_fidelity_strength(),
+        cfg.adaptive_light_strength(), cfg.adaptive_dark_strength(), cfg.saturation,
     );
 
     // Proteção de neutros: branco, cinza e transparente não ganham tinta
