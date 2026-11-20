@@ -16,7 +16,11 @@ fi
 shopt -s nullglob
 snapshots=( "$VERSIONS"/v*-pre-adaptive-* )
 (( ${#snapshots[@]} > 0 )) || { echo "Backup pre-adaptive ausente." >&2; exit 2; }
-BACKUP="$(printf '%s\n' "${snapshots[@]}" | sort -r | head -n 1)"
+# Choose the newest backup by modification time, not alphabetic version name.
+BACKUP="${snapshots[0]}"
+for candidate in "${snapshots[@]:1}"; do
+  if [[ "$candidate" -nt "$BACKUP" ]]; then BACKUP="$candidate"; fi
+done
 [[ -s "$BACKUP/quiklight" && -s "$BACKUP/quiklight_gui.py" ]] || {
   echo "Backup incompleto; nada alterado." >&2; exit 2;
 }
