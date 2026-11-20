@@ -2,7 +2,7 @@
 """Live QuikLight RGB A/B diagnosis; non-root, reversible, no new capture backend.
 
 Pause a scene on screen and minimize Konsole after starting. The test edits
-only adaptive_fidelity_enabled, adaptive_fidelity and color_mode temporarily.
+only adaptive_fidelity_enabled, adaptive_fidelity, adaptive_light and color_mode temporarily.
 The original TOML bytes are restored in finally. The existing Rust backend
 reloads TOML and writes LED output to quiklight-live.bin when .want is fresh.
 """
@@ -84,7 +84,12 @@ def capture(label: str, source: str, **values) -> list[float]:
     frames = [f for f in frames if len(f) == frame_size]
     avg = [statistics.mean(f[i] for f in frames) for i in range(frame_size)]
     brightness = statistics.mean(sum(avg[j:j+3]) / 3 for j in range(0,len(avg),3))
-    print(f"    {len(frames)} quadros; {frame_size//3} LEDs; brilho RGB médio {brightness:.2f}/255")
+    leds = [sum(avg[j:j+3]) / 3 for j in range(0, len(avg), 3)]
+    ranked = sorted(leds)
+    p90 = ranked[min(len(ranked)-1, int(len(ranked)*0.9))]
+    hot = sum(v >= 100.0 for v in leds)
+    print(f"    {len(frames)} quadros; {frame_size//3} LEDs; brilho RGB médio {brightness:.2f}/255; "
+          f"mediana {statistics.median(leds):.2f}; P90 {p90:.2f}; LEDs acima de 100/255: {hot}")
     return avg
 
 
@@ -113,7 +118,7 @@ def main() -> None:
     settings = tomllib.loads(source)
     if settings.get("mode") != "screen":
         raise RuntimeError("Este teste requer mode='screen', para comparar cores de borda.")
-    for key in ("adaptive_fidelity_enabled","adaptive_fidelity","color_mode"):
+    for key in ("adaptive_fidelity_enabled","adaptive_fidelity","adaptive_light","color_mode"):
         if key not in settings:
             raise RuntimeError(f"Chave ausente: {key}")
     global old_mode
@@ -125,27 +130,42 @@ def main() -> None:
     created_want = not want.exists()
     print("=== DIAGNÓSTICO RGB DE FIDELIDADE ADAPTATIVA ===")
     print(f"Configuração original: {settings['adaptive_fidelity_enabled']=}, "
-          f"{settings['adaptive_fidelity']=}, {settings['color_mode']=}")
+          f"{settings['adaptive_fidelity']=}, {settings['adaptive_light']=}, "
+          f"{settings['color_mode']=}")
     print(f"Backup extra: {backup}")
-    print("Deixe um quadro de Tengobu PAUSADO, sem controles sobre a borda.")
+    label = sys.argv[1] if len(sys.argv) > 1 else "noturna"
+    print(f"Cena selecionada: {label}. Deixe a cena do anime PAUSADA, sem menus nas bordas.")
     print("Minimize o Konsole agora. Comparação começa em 3 segundos...",flush=True)
     time.sleep(3)
     try:
         baseline = capture("A - original, vívido ligado",source,
-                           adaptive_fidelity_enabled="false",adaptive_fidelity="100",color_mode='"vivid"')
-        active = capture("B - adaptativa 100%, vívido ligado",source,
-                         adaptive_fidelity_enabled="true",adaptive_fidelity="100",color_mode='"vivid"')
-        baseline2 = capture("C - original novamente, vívido ligado",source,
-                            adaptive_fidelity_enabled="false",adaptive_fidelity="100",color_mode='"vivid"')
-        average = capture("D - original, vívido desligado",source,
-                          adaptive_fidelity_enabled="false",adaptive_fidelity="100",color_mode='"average"')
+                           adaptive_fidelity_enabled="false",adaptive_fidelity="100",
+                           adaptive_light="0",color_mode='"vivid"')
+        color = capture("B - fidelidade de cor 100%, luz 0%",source,
+                        adaptive_fidelity_enabled="true",adaptive_fidelity="100",
+                        adaptive_light="0",color_mode='"vivid"')
+        light60 = capture("C - fidelidade 100%, luz 60%",source,
+                          adaptive_fidelity_enabled="true",adaptive_fidelity="100",
+                          adaptive_light="60",color_mode='"vivid"')
+        light100 = capture("D - fidelidade 100%, luz 100%",source,
+                           adaptive_fidelity_enabled="true",adaptive_fidelity="100",
+                           adaptive_light="100",color_mode='"vivid"')
+        baseline2 = capture("E - original novamente, vívido ligado",source,
+                            adaptive_fidelity_enabled="false",adaptive_fidelity="100",
+                            adaptive_light="0",color_mode='"vivid"')
+        average = capture("F - original, vívido desligado",source,
+                          adaptive_fidelity_enabled="false",adaptive_fidelity="100",
+                          adaptive_light="0",color_mode='"average"')
         print()
-        print("=== RESULTADOS ===")
-        compare("Efeito adaptativa A vs B",baseline,active)
-        compare("Deriva da cena A vs C (ideal perto de zero)",baseline,baseline2)
-        compare("Efeito vívido C vs D",baseline2,average)
-        print("Interpretação: se A vs B ~ deriva, o efeito é pequeno/inexistente nesta cena.")
-        print("Se A vs B >> deriva, o backend altera RGB, mas a diferença pode ser pouco visível.")
+        print("=== RESULTADOS (" + label.upper() + ") ===")
+        compare("A -> B: fidelidade de cor sem reduzir luz",baseline,color)
+        compare("B -> C: redução dinâmica da luz em 60%",color,light60)
+        compare("B -> D: redução dinâmica da luz em 100%",color,light100)
+        compare("A -> D: efeito total máximo",baseline,light100)
+        compare("A -> E: deriva da cena (controle)",baseline,baseline2)
+        compare("E -> F: efeito de desligar o vívido",baseline2,average)
+        print("Compare A -> D com A -> E: se a diferença total for >> deriva, o efeito chegou aos LEDs.")
+        print("Se o brilho continuar excessivo na cena noturna, precisamos adaptar a resposta a cenas escuras.")
     finally:
         atomic_write(original,old_mode)
         if created_want:
