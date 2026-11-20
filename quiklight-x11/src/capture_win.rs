@@ -253,56 +253,103 @@ impl Capturer {
             let latest = Arc::clone(&latest);
             let alive = Arc::clone(&alive);
             thread::spawn(move || {
-                let display = match idx {
-                    Some(i) => scrap::Display::all().ok().and_then(|v| v.into_iter().nth(i)),
-                    None => scrap::Display::primary().ok(),
-                };
-                let Some(display) = display else {
-                    alive.store(false, Ordering::SeqCst);
-                    return;
-                };
-                let mut cap = match scrap::Capturer::new(display) {
-                    Ok(c) => c,
-                    Err(_) => {
-                        alive.store(false, Ordering::SeqCst);
-                        return;
+                // Distinguish temporary DXGI access loss from worker termination.
+                // If this thread unexpectedly exits, the rest of the backend can
+                // still detect a real failure through health().
+                struct WorkerGuard(Arc<AtomicBool>);
+                impl Drop for WorkerGuard {
+                    fn drop(&mut self) {
+                        self.0.store(false, Ordering::SeqCst);
                     }
-                };
-                let (w, h) = (cap.width(), cap.height());
+                }
+                let _guard = WorkerGuard(Arc::clone(&alive));
+                let mut cap: Option<scrap::Capturer> = None;
+                let mut last_notice = Instant::now() - Duration::from_secs(20);
                 loop {
-                    match cap.frame() {
-                        Ok(frame) => {
-                            let stride = frame.len() / h;
-                            let mut out = vec![0u8; cw * ch * 4];
-                            for y in 0..ch {
-                                for x in 0..cw {
-                                    let (mut rs, mut gs, mut bs) = (0u32, 0u32, 0u32);
-                                    for (ox, oy) in [(1usize, 1usize), (3, 1), (1, 3), (3, 3)] {
-                                        let sx = ((x * 4 + ox) * w / (cw * 4)).min(w - 1);
-                                        let sy = ((y * 4 + oy) * h / (ch * 4)).min(h - 1);
-                                        let o = sy * stride + sx * 4;
-                                        bs += frame[o] as u32;
-                                        gs += frame[o + 1] as u32;
-                                        rs += frame[o + 2] as u32;
+                    if cap.is_none() {
+                        // A desktop switch (Win+L / UAC / unlock) invalidates DXGI
+                        // duplication. The normal user cannot capture Winlogon;
+                        // wait and retry without terminating the LED backend.
+                        let display = match idx {
+                            Some(i) => scrap::Display::all().ok()
+                                .and_then(|v| v.into_iter().nth(i)),
+                            None => scrap::Display::primary().ok(),
+                        };
+                        cap = display.and_then(|d| scrap::Capturer::new(d).ok());
+                        if cap.is_none() {
+                            if last_notice.elapsed() >= Duration::from_secs(15) {
+                                eprintln!("Captura Windows temporariamente indisponível; tentando novamente após desbloqueio.");
+                                last_notice = Instant::now();
+                            }
+                            thread::sleep(Duration::from_millis(900));
+                            continue;
+                        }
+                        eprintln!("Captura Windows conectada/reconectada.");
+                    }
+
+                    let mut reconnect = false;
+                    if let Some(c) = cap.as_mut() {
+                        let (w, h) = (c.width(), c.height());
+                        match c.frame() {
+                            Ok(frame) if w > 0 && h > 0 => {
+                                let stride = frame.len() / h;
+                                if stride < w.saturating_mul(4) {
+                                    reconnect = true;
+                                } else {
+                                    let mut out = vec![0u8; cw * ch * 4];
+                                    for y in 0..ch {
+                                        for x in 0..cw {
+                                            let (mut rs, mut gs, mut bs) = (0u32, 0u32, 0u32);
+                                            for (ox, oy) in [(1usize, 1usize), (3, 1), (1, 3), (3, 3)] {
+                                                let sx = ((x * 4 + ox) * w / (cw * 4)).min(w - 1);
+                                                let sy = ((y * 4 + oy) * h / (ch * 4)).min(h - 1);
+                                                let o = sy * stride + sx * 4;
+                                                if o + 2 >= frame.len() {
+                                                    reconnect = true;
+                                                    break;
+                                                }
+                                                bs += frame[o] as u32;
+                                                gs += frame[o + 1] as u32;
+                                                rs += frame[o + 2] as u32;
+                                            }
+                                            if reconnect {
+                                                break;
+                                            }
+                                            let d = (y * cw + x) * 4;
+                                            out[d] = (rs / 4) as u8;
+                                            out[d + 1] = (gs / 4) as u8;
+                                            out[d + 2] = (bs / 4) as u8;
+                                            out[d + 3] = 255;
+                                        }
+                                        if reconnect {
+                                            break;
+                                        }
                                     }
-                                    let d = (y * cw + x) * 4;
-                                    out[d] = (rs / 4) as u8;
-                                    out[d + 1] = (gs / 4) as u8;
-                                    out[d + 2] = (bs / 4) as u8;
-                                    out[d + 3] = 255;
+                                    if !reconnect {
+                                        if let Ok(mut g) = latest.lock() {
+                                            *g = Some(out);
+                                        }
+                                    }
                                 }
                             }
-                            if let Ok(mut g) = latest.lock() {
-                                *g = Some(out);
+                            Ok(_) => reconnect = true,
+                            Err(e) if e.kind() == std::io::ErrorKind::WouldBlock => {
+                                thread::sleep(Duration::from_millis(3));
+                            }
+                            Err(e) => {
+                                if last_notice.elapsed() >= Duration::from_secs(3) {
+                                    eprintln!("Captura Windows perdida: {e}; aguardando reconexão.");
+                                    last_notice = Instant::now();
+                                }
+                                reconnect = true;
                             }
                         }
-                        Err(e) if e.kind() == std::io::ErrorKind::WouldBlock => {
-                            thread::sleep(Duration::from_millis(3));
-                        }
-                        Err(_) => {
-                            alive.store(false, Ordering::SeqCst);
-                            return;
-                        }
+                    }
+                    if reconnect {
+                        // Releasing the old capturer before acquiring a new one
+                        // follows the DXGI duplication contract.
+                        cap = None;
+                        thread::sleep(Duration::from_millis(500));
                     }
                 }
             });
