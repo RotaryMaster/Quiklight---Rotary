@@ -39,8 +39,8 @@ function Test-CurrentAccount([string]$identity) {
     if ([string]::IsNullOrWhiteSpace($identity)) { return $false }
     $me = [Security.Principal.WindowsIdentity]::GetCurrent()
     try {
-        $actualSid = ([Security.Principal.NTAccount]::new($identity)).
-            Translate([Security.Principal.SecurityIdentifier]).Value
+        $account = [Security.Principal.NTAccount]::new($identity)
+        $actualSid = $account.Translate([Security.Principal.SecurityIdentifier]).Value
         if ($actualSid -eq $me.User.Value) { return $true }
     } catch {
         # Some Windows installations do not resolve unqualified stored names.
