@@ -32,15 +32,43 @@ function Get-RunEntry {
 function Get-RunBackup {
     (Get-ItemProperty -Path $backupKey -Name $backupName -ErrorAction SilentlyContinue).$backupName
 }
+function Test-CurrentAccount([string]$identity) {
+    # Windows Task Scheduler may store 'Anderson' instead of 'COMPUTER\\Anderson'.
+    # A SID match is authoritative; accept the short name only when it matches
+    # this interactive account and has no foreign domain qualifier.
+    if ([string]::IsNullOrWhiteSpace($identity)) { return $false }
+    $me = [Security.Principal.WindowsIdentity]::GetCurrent()
+    try {
+        $actualSid = ([Security.Principal.NTAccount]::new($identity)).
+            Translate([Security.Principal.SecurityIdentifier]).Value
+        if ($actualSid -eq $me.User.Value) { return $true }
+    } catch {
+        # Some Windows installations do not resolve unqualified stored names.
+    }
+    if ($identity -eq $me.Name) { return $true }
+    $shortName = ($me.Name -split '\\')[-1]
+    return ($identity -notmatch '[\\@]' -and $identity -eq $shortName)
+}
 function Assert-OurTask($task) {
     if (-not $task) { throw "Tarefa nao encontrada: $taskName" }
-    if ($task.Principal.UserId -ne $currentUser) {
+    if (-not (Test-CurrentAccount ([string]$task.Principal.UserId))) {
         throw "A tarefa pertence a outro usuario; nao alterarei: $($task.Principal.UserId)"
     }
+    if ($task.Principal.LogonType -ne 'Interactive') {
+        throw "A tarefa nao possui logon interativo; nenhuma alteracao."
+    }
     $act = @($task.Actions)
-    if ($act.Count -ne 1 -or $act[0].Execute -notmatch '(?i)pythonw\.exe$' -or
-        $act[0].Arguments -notlike "*quiklight_windows.pyw*--tray*") {
-        throw 'Tarefa ja existe com uma acao inesperada; nenhuma alteracao.'
+    $expectedPythonw = (Get-Command pythonw.exe -ErrorAction Stop).Source
+    $expectedArgs = '"' + $launcher + '" --tray'
+    if ($act.Count -ne 1 -or $act[0].Execute -ne $expectedPythonw -or
+        $act[0].Arguments -ne $expectedArgs) {
+        throw 'Tarefa existente possui um executavel ou argumentos inesperados; nenhuma alteracao.'
+    }
+    $logonTriggers = @($task.Triggers | Where-Object {
+        $_.CimClass.CimClassName -eq 'MSFT_TaskLogonTrigger'
+    })
+    if ($logonTriggers.Count -ne 1 -or @($task.Triggers).Count -ne 1) {
+        throw 'Tarefa existente possui gatilhos inesperados; nenhuma alteracao.'
     }
 }
 function Status {
@@ -68,8 +96,12 @@ function Status {
 
 switch ($Action) {
     'prepare' {
-        if (Get-Task) {
-            throw "Ja existe tarefa '$taskName'. Consulte -Action status."
+        $existing = Get-Task
+        if ($existing) {
+            Assert-OurTask $existing
+            Write-Output 'TAREFA JA PREPARADA. Validada sem criar duplicata; Run antigo preservado.'
+            Status
+            break
         }
         if (-not (Test-Path $launcher)) {
             throw "GUI nao encontrada: $launcher"
