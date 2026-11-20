@@ -395,3 +395,47 @@ impl Config {
         std::fs::write(path, t)
     }
 }
+
+
+#[cfg(test)]
+mod adaptive_fidelity_toggle_tests {
+    use super::Config;
+
+    #[test]
+    fn feature_starts_off_and_remembers_selected_intensity() {
+        let mut cfg = Config::default();
+        assert!(!cfg.adaptive_fidelity_enabled);
+        assert_eq!(cfg.adaptive_fidelity_strength(), 0.0);
+        assert_eq!(cfg.adaptive_fidelity, 60.0);
+
+        cfg.adaptive_fidelity_enabled = true;
+        assert_eq!(cfg.adaptive_fidelity_strength(), 60.0);
+        cfg.adaptive_fidelity = 85.0;
+        cfg.adaptive_fidelity_enabled = false;
+        assert_eq!(cfg.adaptive_fidelity_strength(), 0.0);
+        assert_eq!(cfg.adaptive_fidelity, 85.0);
+
+        cfg.adaptive_fidelity_enabled = true;
+        assert_eq!(cfg.adaptive_fidelity_strength(), 85.0);
+    }
+
+    #[test]
+    fn previous_config_with_intensity_only_does_not_opt_in() {
+        let cfg: Config = toml::from_str(
+            "saturation = 1.40\nadaptive_fidelity = 85\n",
+        ).unwrap();
+        assert!(!cfg.adaptive_fidelity_enabled);
+        assert_eq!(cfg.adaptive_fidelity_strength(), 0.0);
+        assert_eq!(cfg.adaptive_fidelity, 85.0);
+    }
+
+    #[test]
+    fn enabled_intensity_stays_within_safe_range() {
+        let mut cfg = Config::default();
+        cfg.adaptive_fidelity_enabled = true;
+        cfg.adaptive_fidelity = 160.0;
+        assert_eq!(cfg.adaptive_fidelity_strength(), 100.0);
+        cfg.adaptive_fidelity = -5.0;
+        assert_eq!(cfg.adaptive_fidelity_strength(), 0.0);
+    }
+}
