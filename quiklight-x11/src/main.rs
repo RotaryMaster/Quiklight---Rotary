@@ -14,6 +14,7 @@ mod device;
 mod effects;
 mod output;
 mod protocol;
+mod color_fidelity;
 
 use anyhow::{anyhow, Result};
 use clap::Parser;
