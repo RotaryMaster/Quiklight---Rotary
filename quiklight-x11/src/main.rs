@@ -222,7 +222,7 @@ fn file_mtime(p: &PathBuf) -> Option<std::time::SystemTime> {
 fn run(cfg0: &Config, config_path: &PathBuf) -> Result<()> {
     let mut cfg = cfg0.clone();
     eprintln!(
-        "AutoCrop Win startup: config={} auto_crop={} crop_speed={}",
+        "AutoCrop startup: config={} auto_crop={} crop_speed={}",
         config_path.display(), cfg.auto_crop, cfg.crop_speed
     );
     let mut mode = cfg.mode.to_lowercase();
@@ -254,7 +254,8 @@ fn run(cfg0: &Config, config_path: &PathBuf) -> Result<()> {
     let mut music = music::Music::new();
 
     eprintln!(
-        "Quiklight v27 — modo {} | {} LEDs em {} fita(s) | fps={} nivel={}% potencia={}% slew={} acuracia={}",
+        "Quiklight v{} (fidelidade adaptativa experimental) — modo {} | {} LEDs em {} fita(s) | fps={} nivel={}% potencia={}% slew={} acuracia={} adaptativa={} intensidade={}%",
+        env!("CARGO_PKG_VERSION"),
         mode,
         cfg.leds(),
         counts.len(),
@@ -262,7 +263,9 @@ fn run(cfg0: &Config, config_path: &PathBuf) -> Result<()> {
         cfg.level,
         cfg.power_limit,
         cfg.slew,
-        cfg.accuracy
+        cfg.accuracy,
+        cfg.adaptive_fidelity_enabled,
+        cfg.adaptive_fidelity_strength()
     );
 
     // Daqui em diante, um pedido de parada apaga as fitas antes de sair
@@ -310,8 +313,9 @@ fn run(cfg0: &Config, config_path: &PathBuf) -> Result<()> {
                 mode = new_mode;
                 stage.set_slew(cfg.slew);
                 eprintln!(
-                    "Configuração recarregada: modo {} nivel={}% potencia={}% acuracia={} auto_crop={} crop_speed={}",
-                    mode, cfg.level, cfg.power_limit, cfg.accuracy, cfg.auto_crop, cfg.crop_speed
+                    "Configuração recarregada: modo {} nivel={}% potencia={}% acuracia={} auto_crop={} crop_speed={} adaptativa={} intensidade={}%",
+                    mode, cfg.level, cfg.power_limit, cfg.accuracy, cfg.auto_crop, cfg.crop_speed,
+                    cfg.adaptive_fidelity_enabled, cfg.adaptive_fidelity_strength()
                 );
             }
         }
