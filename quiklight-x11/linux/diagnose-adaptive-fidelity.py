@@ -118,9 +118,27 @@ def main() -> None:
     settings = tomllib.loads(source)
     if settings.get("mode") != "screen":
         raise RuntimeError("Este teste requer mode='screen', para comparar cores de borda.")
-    for key in ("adaptive_fidelity_enabled","adaptive_fidelity","adaptive_light","adaptive_dark","color_mode"):
+    for key in ("adaptive_fidelity_enabled","adaptive_fidelity","adaptive_light","color_mode"):
         if key not in settings:
             raise RuntimeError(f"Chave ausente: {key}")
+
+    # Existing configurations may have been saved before the v3 GUI first
+    # wrote adaptive_dark. The Rust Config has #[serde(default)] and safely
+    # reads it as zero. Insert it into the in-memory *test copy only*,
+    # adjacent to adaptive_light so it stays at TOML root (not in [[segment]]).
+    # The original bytes remain untouched and are restored by finally.
+    if "adaptive_dark" not in settings:
+        m = re.search(r"(?m)^[ \\t]*adaptive_light[ \\t]*=[^\\r\\n]*(?:\\r?\\n|$)", source)
+        if not m:
+            raise RuntimeError("Não localizei adaptive_light para inserir o padrão de teste.")
+        eol = "\\r\\n" if "\\r\\n" in source else "\\n"
+        insertion = ("" if source[:m.end()].endswith("\\n") else eol) + "adaptive_dark = 0" + eol
+        source = source[:m.end()] + insertion + source[m.end():]
+        settings = tomllib.loads(source)
+        if settings.get("adaptive_dark") != 0:
+            raise RuntimeError("Não foi possível inserir adaptive_dark na raiz do TOML.")
+        print("Compatibilidade: adaptive_dark ausente no arquivo antigo; usando 0 apenas no teste.")
+
     global old_mode
     old_mode = cfg_path.stat().st_mode & 0o777
     backup = cfg_path.with_name(f"config.toml.before-fidelity-diagnostic-{datetime.now():%Y%m%d-%H%M%S}.bak")
