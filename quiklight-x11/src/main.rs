@@ -225,6 +225,31 @@ fn blackout(devs: &mut [device::Dev], msg_ids: &mut [u8], counts: &[usize]) -> b
     success
 }
 
+// Uses the already-open USB handles. Safe to invoke from the normal loop,
+ // including when capture reports a late error during Windows session teardown.
+fn shutdown_if_requested(
+    devs: &mut [device::Dev],
+    msg_ids: &mut [u8],
+    counts: &[usize],
+) -> bool {
+    #[cfg(windows)]
+    let ipc_shutdown = windows_shutdown::requested();
+    #[cfg(not(windows))]
+    let ipc_shutdown = false;
+    if !STOP.load(Ordering::SeqCst) && !ipc_shutdown {
+        return false;
+    }
+    if ipc_shutdown {
+        eprintln!("Windows shutdown IPC request received; sending black frames via existing HID handles.");
+    }
+    let success = blackout(devs, msg_ids, counts);
+    #[cfg(windows)]
+    if ipc_shutdown {
+        windows_shutdown::acknowledge(success);
+    }
+    true
+}
+
 fn file_mtime(p: &PathBuf) -> Option<std::time::SystemTime> {
     std::fs::metadata(p).ok()?.modified().ok()
 }
@@ -285,19 +310,7 @@ fn run(cfg0: &Config, config_path: &PathBuf) -> Result<()> {
     let mut last_live = start;
 
     loop {
-        #[cfg(windows)]
-        let ipc_shutdown = windows_shutdown::requested();
-        #[cfg(not(windows))]
-        let ipc_shutdown = false;
-        if STOP.load(Ordering::SeqCst) || ipc_shutdown {
-            if ipc_shutdown {
-                eprintln!("Windows shutdown IPC request received; sending black frames via existing HID handles.");
-            }
-            let success = blackout(&mut devs, &mut msg_ids, &counts);
-            #[cfg(windows)]
-            if ipc_shutdown {
-                windows_shutdown::acknowledge(success);
-            }
+        if shutdown_if_requested(&mut devs, &mut msg_ids, &counts) {
             return Ok(());
         }
 
@@ -386,8 +399,7 @@ fn run(cfg0: &Config, config_path: &PathBuf) -> Result<()> {
         let targets = match targets {
             Ok(t) => t,
             Err(e) => {
-                if STOP.load(Ordering::SeqCst) || ipc_shutdown {
-                    blackout(&mut devs, &mut msg_ids, &counts);
+                if shutdown_if_requested(&mut devs, &mut msg_ids, &counts) {
                     return Ok(());
                 }
                 return Err(e);
@@ -451,6 +463,9 @@ fn run(cfg0: &Config, config_path: &PathBuf) -> Result<()> {
             }
             if let Err(e) = protocol::send_frame(&mut devs[i], msg_ids[i], &bytes[i]) {
                 eprintln!("Erro ao enviar quadro para a fita {}: {}", i + 1, e);
+                if shutdown_if_requested(&mut devs, &mut msg_ids, &counts) {
+                    return Ok(());
+                }
                 return Err(e);
             }
             msg_ids[i] = msg_ids[i].wrapping_add(1);
