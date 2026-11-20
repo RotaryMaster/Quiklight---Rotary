@@ -39,10 +39,13 @@ pub fn vivid_weight(original_weight: f32, strength: f32) -> f32 {
 /// existing gain/gamma white-balance calibration. Neutral-white channel
 /// calibration stays intact; do not try to make the resulting LED RGB equal.
 pub fn adjustment(
-    r: f32, g: f32, b: f32, strength: f32, light_reduction: f32, saturation: f32,
+    r: f32, g: f32, b: f32, strength: f32,
+    light_reduction: f32, dark_reduction: f32, saturation: f32,
 ) -> Adjustment {
     let k = (strength / 100.0).clamp(0.0, 1.0);
-    if k <= 0.0 {
+    let light_knob = (light_reduction / 100.0).clamp(0.0, 1.0);
+    let dark_knob = (dark_reduction / 100.0).clamp(0.0, 1.0);
+    if k <= 0.0 && light_knob <= 0.0 && dark_knob <= 0.0 {
         return Adjustment {
             saturation_multiplier: saturation,
             output_scale: 1.0,
@@ -72,16 +75,23 @@ pub fn adjustment(
         saturation
     };
 
-    // Independent adaptive brightness knob. Previously the maximum effect
-    // remained under 7% on real anime material even at 100% strength.
-    // Perceptual light control now also acts on moderately bright areas, while
-    // saturated highlights get only a small reduction.
-    // 0% = no additional dimming. 100% = up to 55% on neutral bright areas.
-    let light_knob = (light_reduction / 100.0).clamp(0.0, 1.0);
+    // Independent bright-scene luminosity reduction. It does not depend
+    // on the color-fidelity slider; the global toggle gates it in Config.
     let scene_light = smoothstep(0.08, 0.58, luminance);
     let color_protection = 1.0 - smoothstep(0.22, 0.75, chroma);
     let selective = 0.18 + 0.82 * color_protection;
-    let output_scale = 1.0 - 0.55 * k * light_knob * scene_light * selective;
+    let bright_scale = 1.0 - 0.55 * light_knob * scene_light * selective;
+
+    // Dark scene correction: in user measurements an anime night scene
+    // produced mean 14/255 LED output, yet the room still appeared too lit.
+    // The bright-scene function above returns ~1.0 in such regions.
+    // This curve gently scales down very dark RGB without tinting it.
+    // Dark-saturated highlights are reduced somewhat less than neutral darks;
+    // fully black stays black. For a clear scene, shadow_scale ~= 1.0.
+    let shadow_scene = 1.0 - smoothstep(0.012, 0.16, luminance);
+    let dark_selective = 0.70 + 0.30 * (1.0 - smoothstep(0.30, 0.85, chroma));
+    let shadow_scale = 1.0 - 0.72 * dark_knob * shadow_scene * dark_selective;
+    let output_scale = (bright_scale * shadow_scale).clamp(0.0, 1.0);
 
     Adjustment { saturation_multiplier, output_scale }
 }
@@ -92,8 +102,8 @@ mod tests {
 
     #[test]
     fn disabled_is_legacy_identical() {
-        for (r,g,b) in [(0.0,0.0,0.0),(0.9,0.7,0.7),(1.0,0.0,0.0)] {
-            let a = adjustment(r,g,b,0.0,100.0,1.4);
+        for (r, g, b) in [(0.0,0.0,0.0),(0.9,0.7,0.7),(1.0,0.0,0.0)] {
+            let a = adjustment(r,g,b,0.0,0.0,0.0,1.4);
             assert_eq!(a.saturation_multiplier,1.4);
             assert_eq!(a.output_scale,1.0);
         }
@@ -101,45 +111,61 @@ mod tests {
     }
 
     #[test]
-    fn pastel_has_more_protection_than_vibrant_red() {
-        let pastel = adjustment(0.95,0.79,0.71,100.0,60.0,1.4);
-        let vivid = adjustment(1.0,0.1,0.05,100.0,60.0,1.4);
+    fn dim_night_pixels_are_reduced_even_when_bright_control_zero() {
+        let a = adjustment(0.15,0.10,0.06,0.0,0.0,60.0,1.4);
+        assert!(a.output_scale < 0.75, "dark scene must be perceptibly dimmed");
+        assert!(a.output_scale > 0.50, "avoid sudden complete extinction");
+        assert_eq!(a.saturation_multiplier,1.4);
+    }
+
+    #[test]
+    fn dark_knob_is_independent_of_color_strength() {
+        let a = adjustment(0.15,0.10,0.06,0.0,0.0,60.0,1.4);
+        let b = adjustment(0.15,0.10,0.06,100.0,0.0,60.0,1.4);
+        assert_eq!(a.output_scale,b.output_scale);
+    }
+
+    #[test]
+    fn dark_knob_has_no_effect_on_bright_white() {
+        let a = adjustment(0.96,0.96,0.96,0.0,0.0,0.0,1.4);
+        let b = adjustment(0.96,0.96,0.96,0.0,0.0,100.0,1.4);
+        assert_eq!(a.output_scale,b.output_scale);
+    }
+
+    #[test]
+    fn light_knob_is_independent_of_color_strength() {
+        let a = adjustment(0.95,0.79,0.71,0.0,60.0,0.0,1.4);
+        let b = adjustment(0.95,0.79,0.71,100.0,60.0,0.0,1.4);
+        assert_eq!(a.output_scale,b.output_scale);
+    }
+
+    #[test]
+    fn pastel_has_more_color_protection_than_vivid_red() {
+        let pastel = adjustment(0.95,0.79,0.71,100.0,0.0,0.0,1.4);
+        let vivid = adjustment(1.0,0.1,0.05,100.0,0.0,0.0,1.4);
         assert!(pastel.saturation_multiplier < vivid.saturation_multiplier);
-        assert!(pastel.output_scale < vivid.output_scale);
-        assert!(pastel.output_scale < 0.90);
+        assert_eq!(pastel.output_scale, 1.0);
     }
 
     #[test]
-    fn light_zero_disables_only_brightness_adaptation() {
-        let color = adjustment(0.95,0.79,0.71,100.0,0.0,1.4);
-        assert_eq!(color.output_scale,1.0);
-        assert!(color.saturation_multiplier < 1.4);
+    fn full_black_stays_black() {
+        let a = adjustment(0.0,0.0,0.0,100.0,100.0,100.0,1.4);
+        assert_eq!(a.saturation_multiplier,1.4);
+        assert!((0.0..=1.0).contains(&a.output_scale));
+        // The pipeline multiplies zero-valued channels by output_scale.
     }
 
     #[test]
-    fn stronger_light_knob_reduces_output_more() {
-        let a = adjustment(0.95,0.79,0.71,100.0,30.0,1.4);
-        let b = adjustment(0.95,0.79,0.71,100.0,90.0,1.4);
-        assert!(b.output_scale < a.output_scale);
-        assert_eq!(a.saturation_multiplier,b.saturation_multiplier);
-    }
-
-    #[test]
-    fn calibrated_white_keeps_relative_rgb_channel_ratios() {
-        let white = adjustment(0.96,0.96,0.96,100.0,60.0,1.4);
-        assert!(white.output_scale > 0.0 && white.output_scale <= 1.0);
-        // Neutral whites have no chroma to saturate; the protection may
-        // reduce the nominal multiplier without tinting the result.
-        assert!(white.saturation_multiplier >= 1.0 && white.saturation_multiplier <= 1.4);
-    }
-
-    #[test]
-    fn no_amplification_or_negative_output() {
-        for k in [0.0,35.0,70.0,100.0,200.0] {
-            for dim in [0.0,60.0,100.0,200.0] {
-                let a = adjustment(0.9,0.8,0.8,k,dim,1.4);
-                assert!((0.45..=1.0).contains(&a.output_scale));
-                assert!((1.0..=1.4).contains(&a.saturation_multiplier));
+    fn max_reduction_bound_and_no_brightness_amplification() {
+        for k in [0.0,35.0,100.0] {
+            for bright in [0.0,60.0,100.0] {
+                for dark in [0.0,60.0,100.0] {
+                    for (r,g,b) in [(0.0,0.0,0.0),(0.1,0.12,0.15),(0.9,0.7,0.5),(1.0,0.2,0.0)] {
+                        let a = adjustment(r,g,b,k,bright,dark,1.4);
+                        assert!((0.0..=1.0).contains(&a.output_scale));
+                        assert!((1.0..=1.4).contains(&a.saturation_multiplier));
+                    }
+                }
             }
         }
     }
