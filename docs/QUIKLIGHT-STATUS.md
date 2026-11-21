@@ -29,3 +29,12 @@ See [README](../README.md) · [mapping](QUIKLIGHT-MULTISTRIP.md) · [installatio
 ## Updated maintainer validation (21 November 2026)
 
 The maintainer subsequently confirmed **v0.3.5.0 fully working on their Bazzite KDE hardware**. This supersedes the earlier v0.3.4.5 stable baseline. The v0.3.5.1 REV/alerts/diagnostics work is experimental and not yet tested on the hardware; see [development notes](QUIKLIGHT-V0351-REV-FLASH.md). Windows v0.3.5.x remains unvalidated.
+
+
+## Maintainer-confirmed v0.3.5.1 operation (21 November 2026)
+
+The maintainer reports **QuikLight v0.3.5.1 is working well on Bazzite KDE** with the new REV/GUI features. This advances the **working Linux installation baseline** to v0.3.5.1. **Exception: intermittent physical white LED flashes remain unresolved** (at least one observed after install); it would be incorrect to claim that the flash issue is fixed or that this build has been tested on Windows.
+
+**KDE Plasma/Wayland and Gamescope Gaming Mode are explicit Linux deployment targets.** The installed `quiklight.service` user unit has existing `10-fast-gamescope.conf` and `20-session-guard.conf` drop-ins. Keep their behavior, boot order, portal capture and session transitions intact when changing the UI/backend. Do not imply Gaming Mode is newly implemented in v0.3.5.1, only that compatibility has been part of the project; test transition behavior again after future changes.
+
+[Feature status and automation planning](QUIKLIGHT-V0352-AUTOMATIONS-SIMRACING.md).
