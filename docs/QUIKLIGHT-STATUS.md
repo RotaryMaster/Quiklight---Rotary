@@ -38,3 +38,8 @@ The maintainer reports **QuikLight v0.3.5.1 is working well on Bazzite KDE** wit
 **KDE Plasma/Wayland and Gamescope Gaming Mode are explicit Linux deployment targets.** The installed `quiklight.service` user unit has existing `10-fast-gamescope.conf` and `20-session-guard.conf` drop-ins. Keep their behavior, boot order, portal capture and session transitions intact when changing the UI/backend. Do not imply Gaming Mode is newly implemented in v0.3.5.1, only that compatibility has been part of the project; test transition behavior again after future changes.
 
 [Feature status and automation planning](QUIKLIGHT-V0352-AUTOMATIONS-SIMRACING.md).
+
+
+## HID reliability incident — 21 November 2026
+
+The maintainer reports Fita 2 stuck in yellow after a left-edge Reverse UI change; `quiklight.service` stays active, physical USB Fita 2 remains enumerated (`usb-0000:02:00.0-6.1`, `/dev/hidraw6`), but HID initialization times out repeatedly with `ETIMEDOUT (os error 110)` ~every 5 s. `fuser` reports only the QuikLight process using the device; kernel log snapshot shows no USB disconnect/reset evidence. Reverse action causality **not established**. Controlled manual recovery is pending: stop service, power-cycle only the affected controller safely, restart, inspect logs and physical LED output. **Do not promote experimental v0.3.5.2 over an unrecovered controller**. [Issue #2](https://github.com/RotaryMaster/rotaryopersonal/issues/2).
