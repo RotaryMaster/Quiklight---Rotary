@@ -128,4 +128,4 @@ The Windows implementation uses dedicated Windows Rust capture and USB paths and
 - Confirm that hotplug, failed USB controllers, startup and shutdown cannot cause restart loops.
 - Preserve upstream license and copyright notices.
 
-More detail: [Status](docs/QUIKLIGHT-STATUS.md) · [MultiStrip mapping](docs/QUIKLIGHT-MULTISTRIP.md) · [Changelog](docs/QUIKLIGHT-CHANGELOG.md) · [MultiStrip development tracker](https://github.com/RotaryMaster/rotaryopersonal/issues/1).
+**USB unplug/replug recovery:** an optional, separate systemd user watcher is under physical test. It leaves the v0.3.4.5 stable backend unchanged and requests a service restart only after previously disconnected RGB controllers have reappeared. See [hotplug notes](docs/QUIKLIGHT-USB-HOTPLUG.md). This feature is **not yet confirmed stable**.\n\nMore detail: [Status](docs/QUIKLIGHT-STATUS.md) · [MultiStrip mapping](docs/QUIKLIGHT-MULTISTRIP.md) · [Changelog](docs/QUIKLIGHT-CHANGELOG.md) · [MultiStrip development tracker](https://github.com/RotaryMaster/rotaryopersonal/issues/1).
