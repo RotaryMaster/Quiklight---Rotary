@@ -25,3 +25,7 @@
 **Publication note:** documentation on GitHub describes an installed local baseline. A downloadable v0.3.4.5 GitHub Release is **not** claimed.
 
 See [README](../README.md) · [mapping](QUIKLIGHT-MULTISTRIP.md) · [installation](QUIKLIGHT-INSTALL.md).
+
+## Updated maintainer validation (21 November 2026)
+
+The maintainer subsequently confirmed **v0.3.5.0 fully working on their Bazzite KDE hardware**. This supersedes the earlier v0.3.4.5 stable baseline. The v0.3.5.1 REV/alerts/diagnostics work is experimental and not yet tested on the hardware; see [development notes](QUIKLIGHT-V0351-REV-FLASH.md). Windows v0.3.5.x remains unvalidated.
