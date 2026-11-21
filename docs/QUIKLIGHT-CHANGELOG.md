@@ -1,3 +1,12 @@
+
+## v0.3.5.0 — maintainer-confirmed functional on Bazzite KDE (2026-11-21)
+- Consolidated physical USB port identity/reconnection, per-strip lighting/power, per-segment Independent/Mirror/Off and local lighting modes including Music.
+- All functions reported working by the maintainer on their two-strip setup. Windows not yet validated.
+
+## v0.3.5.1 — experimental source overlay (not stable)
+- REV Simracing naming and per-segment progressive audio-based RPM bar, screen/solid color selector, original calibration controls, Home error notifications, tray naming and white-flash logging.
+- Full RPM telemetry/game adapters and the root cause of intermittent white flashes remain pending.
+
 # QuikLight MultiStrip — changelog
 
 ## v0.3.4.5 — stable on Bazzite KDE (maintainer-confirmed, 2026-11-21)
