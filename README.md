@@ -4,7 +4,7 @@
 
 **Target operating systems:** **Linux (Bazzite KDE / Wayland)** and **Windows**. Both are part of the project's intended scope, but they do **not** currently have identical validated feature coverage.
 
-> **Stable reference, verified by maintainer on Bazzite KDE:** **MultiStrip v0.3.4.5** (21 November 2026). Physical operation of two 65-LED controllers and the per-segment source settings was confirmed. This is **not** a verified Windows release, nor proof of compatibility with every HID controller.
+> **Stable reference, verified by maintainer on Bazzite KDE:** **MultiStrip v0.3.5.0** (21 November 2026). The maintainer confirmed the consolidated two-controller setup, native USB reconnect, per-strip lighting and per-segment lighting are functioning. This is **not** a verified Windows release, nor proof of compatibility with every HID controller.
 >
 > **Windows latest verified version:** **not yet established for the v0.3.4.x MultiStrip series**. Windows support has code paths and dedicated experimental branches; build, setup and actual hardware behavior require separate validation. Do not treat v0.3.4.5 Linux as a Windows release.
 
@@ -54,7 +54,7 @@ QuikLight is an ambient LED lighting application inspired by and developed from 
 
 **Legend:** ✅ implemented and maintainer-tested · 🟡 code exists or partial, **not fully validated** · ⏳ pending/not confirmed. This table is intentionally conservative; it does not claim feature parity without a Windows hardware test.
 
-| Capability | Bazzite KDE / Linux v0.3.4.5 | Windows (experimental, version unverified) |
+| Capability | Bazzite KDE / Linux v0.3.5.0 | Windows (experimental, version unverified) |
 | --- | :---: | :---: |
 | GUI (Qt/PySide6), themes, language | ✅ | 🟡 |
 | Screen capture and monitor selection | ✅ (KDE portal) | 🟡 (Windows capture module) |
@@ -72,7 +72,7 @@ QuikLight is an ambient LED lighting application inspired by and developed from 
 | Windows installer, startup/shutdown and USB mapping | N/A | ⏳ consolidated validation |
 | Official tested downloadable release | ⏳ reproducible package publication | ⏳ |
 
-**Current baseline by OS:** **Bazzite KDE: v0.3.4.5 stable (locally installed and user-confirmed). Windows: no version certified as stable for this MultiStrip series.** This repository contains older branches and installers that should not be confused with the current validated Linux baseline.
+**Current baseline by OS:** **Bazzite KDE: v0.3.5.0 stable (locally installed and user-confirmed). Windows: no version certified as stable for this MultiStrip series.** This repository contains older branches and installers that should not be confused with the current validated Linux baseline.
 
 ## Reference hardware arrangement
 
@@ -129,3 +129,7 @@ The Windows implementation uses dedicated Windows Rust capture and USB paths and
 - Preserve upstream license and copyright notices.
 
 **USB unplug/replug recovery:** an optional, separate systemd user watcher is under physical test. It leaves the v0.3.4.5 stable backend unchanged and requests a service restart only after previously disconnected RGB controllers have reappeared. See [hotplug notes](docs/QUIKLIGHT-USB-HOTPLUG.md). This feature is **not yet confirmed stable**.\n\nMore detail: [Status](docs/QUIKLIGHT-STATUS.md) · [MultiStrip mapping](docs/QUIKLIGHT-MULTISTRIP.md) · [Changelog](docs/QUIKLIGHT-CHANGELOG.md) · [MultiStrip development tracker](https://github.com/RotaryMaster/rotaryopersonal/issues/1).
+
+## Upcoming REV Simracing and diagnostics (experimental)
+
+The maintained v0.3.5.0 installation is working on Bazzite KDE. The v0.3.5.1 experimental patch adds screen-color source to segment Music, smoother progressive **audio-derived** REV lights, original color-calibration resets, persistent Home alerts, system-tray notifications and a QLV3 white-flash diagnostic. Game RPM telemetry is **research-stage**, and physical white flashes remain **unresolved**. See [v0.3.5.1 development notes](docs/QUIKLIGHT-V0351-REV-FLASH.md). No Linux/Windows v0.3.5.1 stable release is claimed.
