@@ -18,3 +18,9 @@ Solicitação do mantenedor em 2026-11-21: **a cada nova instalação, inclusive
 **Correção mínima e portátil:** invocar com `exec bash "$HERE/iniciar-linux.sh" --visual-demo` (ou preservar o bit de execução no empacotamento). Evitar depender de `chmod` em diretórios extraídos/partilhas. O erro **não** decorre de falha da GUI ou do backend Rust.
 
 Pacote antigo permanece experimental e não deve substituir o executável instalado. O reparo pode ser aplicado diretamente no script já extraído, sem baixar outro ZIP.
+
+## Correção do artefato entregue (21/11/2026)
+
+O ZIP `QuikLight-Stage02-v05.1-MultiStrip-Safe-FONTES.zip` foi reempacotado **com o mesmo nome** para corrigir o launcher: `iniciar-linux.sh` recebe modo executável e `testar-e-abrir-linux.sh` chama `exec bash ...` após os testes. O script também exclui ZIPs de versões anteriores que correspondam a `QuikLight-Stage02-v*.zip` **apenas** quando o ZIP atual `QuikLight-Stage02-v05.1-MultiStrip-Safe-FONTES.zip` existir em Downloads. Nenhuma pasta extraída, arquivo alheio ou backup é apagado. Como o usuário já havia extraído a versão anterior, a cópia local precisa do reparo mínimo no launcher ou de nova extração; não é necessário baixar novamente para apenas abrir a GUI.
+
+SHA256 do ZIP corrigido: `22d139d93fa6083e11aecec4e57c2cae90ab116f7c8ebbcd5ac8e1e6ab6dc8d1`. Verificações locais: `bash -n` sem erros e 44 testes Python, dos quais 1 ignorado por falta de Qt neste ambiente.
