@@ -1,135 +1,129 @@
 # QuikLight — RotaryMaster fork
 
-**Supported UI languages:** 🇺🇸 English · 🇧🇷 Português (Brasil) · 🇪🇸 Español. The interface has selectable translations; coverage may vary by page.
+**Supported interface languages:** English · Português (Brasil) · Español *(translation coverage can differ by screen)*.
 
-**Target operating systems:** **Linux (Bazzite KDE / Wayland)** and **Windows**. Both are part of the project's intended scope, but they do **not** currently have identical validated feature coverage.
+**Platforms:** Linux (**Bazzite KDE Plasma / Wayland**, including **Gamescope Gaming Mode**) and **Windows**. The project targets both systems; compatibility is not identical or equally validated.
 
-> **Stable reference, verified by maintainer on Bazzite KDE:** **MultiStrip v0.3.5.0** (21 November 2026). The maintainer confirmed the consolidated two-controller setup, native USB reconnect, per-strip lighting and per-segment lighting are functioning. This is **not** a verified Windows release, nor proof of compatibility with every HID controller.
+> **Current working Linux baseline: v0.3.5.1**, confirmed by the maintainer on Bazzite KDE on **21 November 2026**, using two ROBOBLOQ 65-LED controllers. **Known issue: intermittent physical white flashes are not resolved** (at least one observed after installation). This is an installed and working local build, **not** a published reproducible GitHub Release.
 >
-> **Windows latest verified version:** **not yet established for the v0.3.4.x MultiStrip series**. Windows support has code paths and dedicated experimental branches; build, setup and actual hardware behavior require separate validation. Do not treat v0.3.4.5 Linux as a Windows release.
+> **Windows current stable MultiStrip release: not confirmed.** Dedicated capture, HID and GUI paths exist, but v0.3.5.x and related Gamescope features have not been validated on Windows. Never infer Windows feature parity from Linux success.
+>
+> **Next version: v0.3.5.2 (EXPERIMENTAL)**: Tuya/LumaSync-style automation and exceptions plus native UDP simracing telemetry. Python logic tests passed; Rust build, GUI integration and real gameplay testing are **pending**.
 
-## Overview and origins
+## Overview and origin
 
-QuikLight is an ambient LED lighting application inspired by and developed from the upstream **quiklight-x11** project. This is the **RotaryMaster fork**, evolving the Rust capture/HID engine and Qt/PySide6 GUI. It targets screen-responsive RGB lighting, audio reactive effects, multiple LED strips, and cross-platform operation. Please preserve relevant upstream attribution and license notices when distributing derived files.
+A Rust/PySide6 ambient RGB lighting driver derived from [Kevinsillo/quiklight-x11](https://github.com/Kevinsillo/quiklight-x11) and related upstream projects. This fork develops four-edge screen capture, adaptive fidelity, audio-reactive lighting, per-strip and per-segment modes, native LED USB HID handling, user-service installation and future Windows feature parity. Preserve upstream attributions and license notices.
 
-**Upstream:** [Kevinsillo/quiklight-x11](https://github.com/Kevinsillo/quiklight-x11) · **Fork repository:** [RotaryMaster/rotaryopersonal](https://github.com/RotaryMaster/rotaryopersonal)
+## Main features
 
-## Features: what each does
-
-| Feature | Behavior |
+| Feature | What it does |
 | --- | --- |
-| Screen ambient mode | Samples the screen edges and renders corresponding colors on the mapped LED segments. |
-| Monitor selection | Chooses the screen to capture (KDE portal on Bazzite; Windows backend requires validation). |
-| Top / right / bottom / left mapping | Assigns LED segments to the four edges, independently from their physical positions. |
-| MultiStrip control | Maps multiple physical controllers, with independent logical and physical LED counts. |
-| Segment position and direction | Supports explicit or automatic LED offsets and reverses segment color order. |
-| Segment source: Independent | Each active segment samples its own assigned edge region. |
-| Segment source: Mirror | Duplicates colors from another independent source segment; supports unequal LED counts by resampling. |
-| Segment source: Off | Forces physical LEDs to black without deleting their hardware slots. |
-| Physical strip enable and RGB gain | Enables/disables each strip and adjusts final RGB gains per controller. |
-| Real-time configuration | Applies regular and structural configuration updates while the service runs; new physical USB devices can still require separate initialization. |
-| Live LED preview | Displays actual final RGB output from the backend's QLV3 telemetry instead of inventing colors. |
-| Black-bar detection | Auto-crops letterbox/pillarbox areas to sample the actual picture. |
-| Screen capture insets | Moves the sampling boundary inward from any of the four edges. |
-| Color sampling and Vivid mode | Offers average/vivid selection and color weighting. |
-| Color fidelity and adaptive fidelity | Adjusts color accuracy, saturation, scene brightness and adaptive response. Experimental fidelity controls may remain opt-in. |
-| White balance and gamma | Adjusts overall and per-channel RGB/gamma response. |
-| Brightness, power limit, level | Limits output intensity and offers safety-oriented brightness/power settings. |
-| Smoothing, slew, fade | Controls temporal transitions to reduce flicker and abrupt shifts. |
-| Screen dominant and palette modes | Supports dominant scene color, selectable palette and additional color dynamics. |
-| Static color | Applies a fixed RGB color across configured active LEDs. |
-| Built-in effects | Breathing, pulsing, rainbow, fade, comet, aurora and fire; adjustable speed/minimum. |
-| Music-reactive mode | Uses computer audio to drive brightness/color changes using bass, treble, volume or RPM-like response. |
-| Music styles | Dim, boost, flash, saturation, complementary color, palette swap, split, volume, wave, VU meter, sparks, REV, hue spin, breathing, chase, center burst, confetti, heat, four-edge, heartbeat, echo, ping-pong. |
-| Music meter and thresholds | Live five-band metering, adjustable thresholds, toggles and per-segment participation. |
-| Configuration presets | Saves/loads lighting and hardware mappings. Separate music presets are also available. |
-| GUI themes and language | Qt interface with appearance/language selection and a tray icon. |
-| Metrics / logs / reports | Displays app/service metrics and supports log inspection, export and configuration backup. |
-| Version history and rollback | Keeps previous version snapshots to restore earlier working binaries and GUI. |
-| Autostart | KDE user service for LEDs plus XDG autostart of the Qt tray, and Windows startup logic under development. |
-| Linux HID isolation | Attempts to prevent failure or timeout of one USB controller from stopping another. |
-| Configuration validation | Rejects overlapping physical LED slots and invalid mapping/source combinations. |
+| Screen / border capture | Samples four screen edges and maps colors to actual LEDs |
+| KDE portal and monitor selection | Captures a selected monitor through PipeWire / portal; restore tokens reduce reprompts |
+| Gamescope support | Existing Linux environment/session detection and Gamescope-specific service drop-ins, including `10-fast-gamescope.conf` and `20-session-guard.conf`; Game Mode transitions must be retested after upgrades |
+| Hardware mapping | Manages two (or more, subject to hardware testing) physical HID controllers; positions, direction and active/off sections |
+| USB identity and reconnect | Binds each physical strip to its selected USB port; per-controller worker can retry after a reconnect |
+| Per-segment source | Independent, Mirror another segment, or Off |
+| Per-strip lighting | Inherit global, static, dominant, regional dominant, palette and effects |
+| Per-segment lighting | Inherit strip, static, dominant, regional dominant, palette, effect, or Music |
+| Per-segment intensity | Attenuate a mapped section independently from global and strip output limits |
+| Per-strip brightness/power | Independent software brightness and power limiting, still subject to safety constraints |
+| Music modes | 22 audio-reactive styles, band sensitivity, screen/static source, with **MODO REV Simracing** as an audio-based approximation |
+| Dynamic color fidelity | Adaptive brightness for light/dark scenes, RGB/gamma/neutral handling |
+| Black-bar detection | Letterbox and pillarbox exclusion, adaptive screen insets |
+| Calibration | Color and white-balance profiles, neutral reset and original upstream defaults |
+| Real-time config | Live changes without an Apply click or full service restart where supported |
+| Preview & metrics | QLV3 physical RGB preview, performance information and service status |
+| Home alerts | Persistent recent errors and optional system notifications |
+| Presets and rollback | User-editable presets, version snapshots, backup/restore |
+| Startup and shutdown | Existing KDE session/systemd user service and GUI tray; Windows paths under development |
 
-## Compatibility and implementation matrix
+## Compatibility matrix
 
-**Legend:** ✅ implemented and maintainer-tested · 🟡 code exists or partial, **not fully validated** · ⏳ pending/not confirmed. This table is intentionally conservative; it does not claim feature parity without a Windows hardware test.
+✅ Maintainer reported working on the target hardware · ◐ Code/integration exists, needs specific retest · ☐ Not yet validated/implemented on this platform.
 
-| Capability | Bazzite KDE / Linux v0.3.5.0 | Windows (experimental, version unverified) |
-| --- | :---: | :---: |
-| GUI (Qt/PySide6), themes, language | ✅ | 🟡 |
-| Screen capture and monitor selection | ✅ (KDE portal) | 🟡 (Windows capture module) |
-| Four-edge color sampling / black-bar auto-crop | ✅ | 🟡 |
-| Accuracy / RGB / vivid / adaptive controls | ✅ | 🟡 |
-| Static, dominant and built-in effects | ✅ | 🟡 |
-| Music mode and 22 styles | ✅ | 🟡 |
-| Two physical HID strips and 65 positions per strip | ✅ | ⏳ |
-| Independent / mirror / off per segment | ✅ | 🟡 (code path, no hardware validation) |
-| Config changes without Apply / HID restart | ✅ | 🟡 |
-| Live physical QLV3 RGB preview | ✅ | 🟡 |
-| Presets, backups and rollback | ✅ | 🟡 |
-| Session autostart | ✅ (systemd user + KDE tray) | 🟡 |
-| Controller failure isolation | ✅ on tested Linux setup | ⏳ hardware verification |
-| Windows installer, startup/shutdown and USB mapping | N/A | ⏳ consolidated validation |
-| Official tested downloadable release | ⏳ reproducible package publication | ⏳ |
+| Capability | Bazzite KDE v0.3.5.1 | Bazzite Gamescope | Windows v0.3.5.x |
+| --- | :---: | :---: | :---: |
+| Qt GUI and presets | ✅ | ◐ user session dependent | ◐ |
+| KDE/Wayland monitor capture and Portal | ✅ | ◐ specialized capture path | N/A |
+| Gamescope environment detection / transition guards | ◐ | ◐ | N/A |
+| Windows capture backend | N/A | N/A | ◐ |
+| Physical USB mapping, independent strips | ✅ | ◐ | ☐ |
+| Per-segment sources, modes and dimming | ✅ | ◐ | ◐ |
+| Audio music, REV with audio estimate | ✅ | ◐ | ◐ |
+| Automatic recovery of bound USB strips | ✅ user reported functions working | ◐ | ☐ |
+| Real-time settings & QLV3 | ✅ | ◐ | ◐ |
+| Home alerts and calibration reset | ✅ | ◐ | ◐ |
+| Automated exceptions, app/schedule rules | ☐ v0.3.5.2 prepared | ☐ testing required | ☐ testing required |
+| Native F1/Forza/BeamNG UDP RPM | ☐ v0.3.5.2 prepared | ☐ testing required | ☐ testing required |
+| Verified standalone installer/Release | ☐ | ☐ | ☐ |
 
-**Current baseline by OS:** **Bazzite KDE: v0.3.5.0 stable (locally installed and user-confirmed). Windows: no version certified as stable for this MultiStrip series.** This repository contains older branches and installers that should not be confused with the current validated Linux baseline.
+**The Linux runtime engine is tested; Gamescope boot and KDE ⇄ Gaming Mode transitions were supported earlier but are not yet specifically revalidated for v0.3.5.1.** Session drop-ins are preserved by later experimental installers.
 
-## Reference hardware arrangement
+## Reference hardware
 
-Two ROBOBLOQ USB HID devices (VID:PID `1A86:FE07`), 65 physical LEDs each:
+Two ROBOBLOQ USB HID controllers (VID:PID `1A86:FE07`), each with **65 physical positions**.
 
-| Physical LEDs (1-based) | Strip 1 | Strip 2 (bottom profile) |
+| LEDs (1-based, per device) | Strip 1 | Strip 2 (bottom layout) |
 | --- | --- | --- |
-| 1–17 | Left edge | Left reserved / Off |
-| 18–48 | Top edge | Bottom edge, 31 LEDs |
-| 49–65 | Right edge | Right reserved / Off |
+| 1–17 | Left | Optional left / Off |
+| 18–48 | Top | Bottom (31 LEDs) |
+| 49–65 | Right | Optional right / Off |
 
-Every controller has its **own LED offsets**. Turning a section off never shrinks the physical strip. If the side sections on Strip 2 are intentionally enabled and set to **Independent**, they may have different colors from Strip 1 because the `edge_window` sampler partitions the same screen edge among enabled segments. Use **Mirror** to duplicate a chosen segment rather than resampling.
+The hardware may report duplicate serial strings; **never bind strip identity to `hidrawN` or duplicated serials**. The user's actual bound physical ports can be changed; examples in docs are **not** universal defaults.
 
-## Getting files and installing
+## Getting files and installation
 
-### Linux — Bazzite KDE (tested target)
+### Linux — Bazzite KDE
 
-**Sources and available files:**
-1. [This fork's repository](https://github.com/RotaryMaster/rotaryopersonal) and its [QuikLight branches](https://github.com/RotaryMaster/rotaryopersonal/branches) contain project history and older installers.
-2. The **v0.3.4.5 local source/patch package** is derived from the previous v0.3.4.4 build. It is **not yet a complete standalone GitHub Release or one-command clean installation**; do not mistake an older `instalar-quiklight-v25.sh` for v0.3.4.5.
-3. Check [GitHub Releases](https://github.com/RotaryMaster/rotaryopersonal/releases) for downloadable packages **when a verified build is published**. No v0.3.4.5 release is claimed here.
+1. Browse this [fork](https://github.com/RotaryMaster/rotaryopersonal) and [development branches](https://github.com/RotaryMaster/rotaryopersonal/branches).
+2. Check [Releases](https://github.com/RotaryMaster/rotaryopersonal/releases) when a complete build is eventually published; **there is no claimed full v0.3.5.1 or v0.3.5.2 GitHub Release**.
+3. The v0.3.5.x **source overlay packages** were distributed in the project's ChatGPT development conversation and build against previously staged Rust/Qt sources; they are **not standalone clean installers**. Old v25 or v0.3.4.x scripts are **not** substitutes for the newest release.
+4. When you already have the verified current installation, preserve its user-scoped paths:
 
-**Existing working v0.3.4.5 installation:** preserve the live configuration and installed binaries; audit first before consolidating startup. Default user paths:
 ```text
 ~/.local/bin/quiklight
 ~/.local/share/quiklight-gui-qt/quiklight_gui.py
 ~/.local/share/quiklight-gui-qt/venv-py315/bin/python
 ~/.local/share/quiklight-rust/config.toml
 ~/.config/systemd/user/quiklight.service
-~/.config/autostart/quiklight-gui.desktop
+~/.config/systemd/user/quiklight.service.d/ (existing Gamescope/session guards)
 ```
 
-The startup consolidation checks the current v0.3.4.5 GUI hash and compiled binary if available, makes reversible backups, and ensures **one canonical user service + one KDE tray autostart**. It must not edit the immutable OS base or replace an already-working binary just to change startup. If it finds unexpected legacy entries it **stops and asks for review**, rather than deleting them.
+Check rather than replace:
 
 ```bash
-python3 consolidar_estavel.py --audit
-python3 consolidar_estavel.py --activate
-systemctl --user is-enabled quiklight.service
+systemctl --user show quiklight.service -p ExecStart -p FragmentPath -p DropInPaths
 systemctl --user is-active quiklight.service
+systemctl --user is-enabled quiklight.service
 ```
 
-`--activate` is only for an **already installed, working v0.3.4.5**. It opens the GUI automatically when safe and prints a rollback command. A fresh installation requires assembling the full upstream Rust source and Qt helper modules, then building with `cargo check --locked`, `cargo test --locked`, `cargo build --release --locked`, provisioning PySide6, and reviewing the user service before enabling autostart. **Do not download random binaries or run an unverified installer.**
+A clean first-time installer must still be consolidated, include full Rust and Qt helper sources, provision dependencies and a checksummed download, then be tested with USB hardware. **Never blindly run an old installer on the working configuration.**
 
-### Windows — planned/experimental target
+### Windows
 
-The Windows implementation uses dedicated Windows Rust capture and USB paths and Qt/PySide6 GUI routines. Look in the [Windows development branches](https://github.com/RotaryMaster/rotaryopersonal/branches) (for example `quiklight-x11-windows`) for work in progress. **No tested MultiStrip v0.3.4.5 Windows package or verified single-click installer is published.** There is therefore no honest equivalent installation command yet. Before deploying: build on Windows with Rust/Cargo, verify Qt dependencies, test USB enumeration, HID timeouts, capture and autostart, then publish a signed or checksum-verified release.
+Windows is an explicit development platform. Earlier branches implement Windows capture, GUI and service/task handling but **v0.3.5.x has not been certified on physical MultiStrip hardware**. See the [Windows development branches](https://github.com/RotaryMaster/rotaryopersonal/branches). No tested v0.3.5.x Windows installer is claimed; building requires Rust/Cargo, Qt/PySide6 and validated USB/HID mappings.
 
-## Development and testing
+## Automation and exceptions — v0.3.5.2 experimental
 
-- Do not commit real `config.toml`, hardware serial numbers, local identifiers, user paths, secrets or raw support logs.
-- Protect a working Linux installation with backup and rollback before changing binaries, Qt UI or service startup.
-- Keep the Linux and Windows feature matrix updated **based on actual testing**, not only source code presence.
-- Confirm that hotplug, failed USB controllers, startup and shutdown cannot cause restart loops.
-- Preserve upstream license and copyright notices.
+Design based on the maintainer's Tuya Ambient Light/LumaSync workflow: per-application process detection, optional schedules and weekdays, start/stop delays, editable rules/presets, history and manual exceptions. Exceptions can ignore, turn off or apply static/preset illumination. On an app's exit the rule can restore previous lighting, use the Default preset, turn off, keep the last state or proceed to the next eligible rule.
 
-**USB unplug/replug recovery:** an optional, separate systemd user watcher is under physical test. It leaves the v0.3.4.5 stable backend unchanged and requests a service restart only after previously disconnected RGB controllers have reappeared. See [hotplug notes](docs/QUIKLIGHT-USB-HOTPLUG.md). This feature is **not yet confirmed stable**.\n\nMore detail: [Status](docs/QUIKLIGHT-STATUS.md) · [MultiStrip mapping](docs/QUIKLIGHT-MULTISTRIP.md) · [Changelog](docs/QUIKLIGHT-CHANGELOG.md) · [MultiStrip development tracker](https://github.com/RotaryMaster/rotaryopersonal/issues/1).
+- All rules are off by default; the helper **does not change the existing `config.toml`**.
+- A separate local user-session worker publishes expiring temporary overrides to the Rust backend, so stopping the helper returns to the base configuration.
+- The existing service, HID mapping, KDE desktop entry, Gamescope drop-ins and immutable OS image remain untouched by preparation.
+- History keeps up to 120 detections (app/category/time), without screenshots, URLs, window titles, command arguments or browsing history.
 
-## Upcoming REV Simracing and diagnostics (experimental)
+**Built-in Simracing telemetry candidate:** F1 24 / F1 25 (UDP formats 2024/2025; F1 25's *2026 Season Pack format not supported yet*); Forza Motorsport / Motorsport 7 / Horizon 4-5 by Sled/Dash; BeamNG OutGauge with user-adjustable max RPM. Planned UDP ports: 20777 (F1), 5300 (Forza), 4444 (BeamNG); games must be configured to send UDP locally. The Rust receiver uses no SimHub or extra installation. Games relying on Proton/Windows shared-memory APIs (ACC, Assetto Corsa, iRacing, AMS2, etc.) require another adapter and **are not yet supported natively by this experimental patch**.
 
-The maintained v0.3.5.0 installation is working on Bazzite KDE. The v0.3.5.1 experimental patch adds screen-color source to segment Music, smoother progressive **audio-derived** REV lights, original color-calibration resets, persistent Home alerts, system-tray notifications and a QLV3 white-flash diagnostic. Game RPM telemetry is **research-stage**, and physical white flashes remain **unresolved**. See [v0.3.5.1 development notes](docs/QUIKLIGHT-V0351-REV-FLASH.md). No Linux/Windows v0.3.5.1 stable release is claimed.
+See [Automation/Simracing technical plan](docs/QUIKLIGHT-V0352-AUTOMATIONS-SIMRACING.md).
+
+## Known issues
+
+- **Intermittent white LED flash**: still reproducible, especially while typing on a dark webpage. Not proven to be capture, USB framing, controller firmware or power. QLV3 only shows prepared RGB, not a HID acknowledgement; continue trace correlation rather than adding speculative filters.
+- Windows feature parity and direct Gamescope startup still need current-version physical regression tests.
+
+## Documentation
+
+[Platform status](docs/QUIKLIGHT-STATUS.md) · [Installation](docs/QUIKLIGHT-INSTALL.md) · [History](docs/QUIKLIGHT-CHANGELOG.md) · [USB identity and flashes](docs/QUIKLIGHT-USB-IDENTITY-FLASH.md) · [v0.3.5.1 REV and diagnostics](docs/QUIKLIGHT-V0351-REV-FLASH.md) · [Issue tracker](https://github.com/RotaryMaster/rotaryopersonal/issues/1).
+
+This is a community fork. Preserve upstream copyright/license attribution, avoid publishing private configs/IDs and use reversible, explicit installs only.
