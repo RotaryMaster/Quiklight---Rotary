@@ -122,6 +122,9 @@ See [Automation/Simracing technical plan](docs/QUIKLIGHT-V0352-AUTOMATIONS-SIMRA
 - **Intermittent white LED flash**: still reproducible, especially while typing on a dark webpage. Not proven to be capture, USB framing, controller firmware or power. QLV3 only shows prepared RGB, not a HID acknowledgement; continue trace correlation rather than adding speculative filters.
 - Windows feature parity and direct Gamescope startup still need current-version physical regression tests.
 
+
+- **Strip 2 HID timeout / stuck yellow** (21 Nov 2026): the controller remains enumerated on its bound USB port but repeat HID initializations fail `ETIMEDOUT (110)` approximately every five seconds; restarting the process cannot guarantee recovery. Not proven caused by clicking Reverse. **Do not install automation/Simracing over this faulty hardware state** until a controlled per-strip power-cycle and log comparison. See [issue #2](https://github.com/RotaryMaster/rotaryopersonal/issues/2).
+
 ## Documentation
 
 [Platform status](docs/QUIKLIGHT-STATUS.md) · [Installation](docs/QUIKLIGHT-INSTALL.md) · [History](docs/QUIKLIGHT-CHANGELOG.md) · [USB identity and flashes](docs/QUIKLIGHT-USB-IDENTITY-FLASH.md) · [v0.3.5.1 REV and diagnostics](docs/QUIKLIGHT-V0351-REV-FLASH.md) · [Issue tracker](https://github.com/RotaryMaster/rotaryopersonal/issues/1).
