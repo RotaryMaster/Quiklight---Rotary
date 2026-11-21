@@ -59,3 +59,16 @@ Saídas locais fornecidas pelo mantenedor em 2026-11-21: leituras TOML com `toml
 **Entrega experimental:** `QuikLight-Stage02-v05.1-MultiStrip-Safe-FONTES.zip` na conversa. O comando `Stage02-v0.5.1/testar-e-abrir-linux.sh` valida sintaxe e testes Python, lê a configuração ativa sem modificá-la e só então abre automaticamente a GUI em `--visual-demo`. Não substitui o backend, não reinicia o serviço nem modifica a base imutável.
 
 **Pendências principais:** testar fisicamente se `reverse=false` corrige a esquerda; diagnóstico da prévia branco/vermelho; prévia QLV3 por dispositivo físico; controles completos de 22 campos por segmento, e compatibilidade Windows testada. **Não publicar como versão estável até a validação física.**
+
+
+## Atualização 21/11/2026 — Stage 02 v0.5.2 QLV3 experimental
+
+**Defeito confirmado nos fontes da GUI v0.5.1:** `LedOutline.paintEvent()` em `LEDs e fitas` desenhava pontos fixos sem ler frames do serviço. Já a prévia em `Captura` lia `$XDG_RUNTIME_DIR/quiklight-live.bin`, que concatena RGB das fitas e não identifica cada dispositivo. O Rust v0.3.5.1 também publica o formato `$XDG_RUNTIME_DIR/quiklight-live-v3.bin` com cabeçalho `QLV3`, sequência `u64 LE` e, por dispositivo, ID, contagem `u16 LE` e RGB. Ambos os arquivos são produzidos quando há um arquivo recente `quiklight-live.want` (telemetria solicitada).
+
+**Implementação experimental separada v0.5.2**: adiciona `gui/telemetry_live.py` com decodificação validada de QLV3, quadros atualizados em Captura **e** LEDs/Fitas, dois controladores renderizados separadamente por posição física 0–64, amostragem orientada por `reverse`, reserva de LEDs desligados, indicadores de quadro e mensagem de falta de dados. Nenhuma cor é fabricada quando QLV3 está desatualizado. `--visual-demo` impede gravação de configuração e serviços mas **não torna o RGB simulado**: ele é lido do Rust em execução. A UI ativa o pedido de telemetria automaticamente ao abrir uma página de LEDs; arquivo `quiklight-live.want` no runtime do usuário é a única escrita operacional necessária para solicitar os quadros, sem alterar configuração ou serviço.
+
+**Validação pré-instalação:** 53 testes Python (52 aprovados, 1 smoke Qt ignorado por falta de PySide6), sintaxe dos scripts bash e integridade do ZIP. **Ainda não validado visualmente no Bazzite KDE ou com dispositivos físicos.** Também não foi validado no Windows. A prévia mostra o RGB final calculado pelo backend, **não** leitura óptica/medição da luz emitida no hardware.
+
+**Entrega:** `QuikLight-Stage02-v05.2-MultiStrip-QLV3-FONTES.zip` entregue na conversa, SHA256 `f31fe643f211dfbfcbc9def0c2103999ddf9e0fb644df66a18692592365c59bd`. Seu script `testar-e-abrir-linux.sh` valida testes/configuração, remove **apenas ZIPs antigos da família Stage02** presentes em Downloads depois de reconhecer o ZIP atual, e abre a GUI experimental. `iniciar-linux.sh` tem permissão executável e é chamado explicitamente com Bash. Nenhuma alteração foi feita no serviço QuikLight ativo por esta análise.
+
+**Pendências:** teste visual de renderização Qt, confirmação física da direção esquerda (`reverse=true`), verificação da anomalia branco/vermelho, controle completo de perfis na Stage 02 e compatibilidade Windows.
