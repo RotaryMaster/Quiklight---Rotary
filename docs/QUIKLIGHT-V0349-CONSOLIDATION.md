@@ -21,7 +21,7 @@ A disconnected controller remains reserved in its logical slot. The other worker
 
 ## Safety checks
 
-- Build helper only accepts the exact audited `v0348-per-segment/rust` source hashes: main `94c2bbc5`, config `047b1ca2`, device `6b3a0472`, output `27e160a3`, multi_strip `8bfc19d0`.
+- Build helper only accepts the exact audited `v0348-per-segment/rust` source hashes: main `94c2bbc5`, config `6f513aea`, device `6b3a0472`, output `27e160a3`, multi_strip `41946ea1`.
 - It copies to `v0349-consolidado/rust` and overlays only `device.rs` and `hid_workers.rs`.
 - Commands: `python3 preparar.py --audit`, then `python3 preparar.py --prepare` (Cargo check/test/release).
 - Separate `instalar.py --audit` requires exact previously reported working backend/GUI hashes and confirmed USB bindings.
@@ -40,3 +40,7 @@ A disconnected controller remains reserved in its logical slot. The other worker
 - [ ] Windows build/identity strategy remains unverified
 
 [Main README](../README.md) · [USB identity and flash findings](QUIKLIGHT-USB-IDENTITY-FLASH.md) · [Per-strip lighting](QUIKLIGHT-PER-STRIP-LIGHTING.md).
+
+## Audit correction v0.3.4.9r1 (21 November 2026)
+
+The original `preparar.py` accidentally used two **pre-v0.3.4.8** hashes: `config.rs` from v0.3.4.7 (`047b1ca2…`) and `multi_strip.rs` from v0.3.4.5 (`8bfc19d0…`). The exact source hashes for the built v0.3.4.8 are `config.rs` `6f513aea17e6ea190c36ae971f8cc13e6edf4896b70122d6d23fad45b05a9c49` and `multi_strip.rs` `41946ea19d09f3df6637bd2436215108df8df1769da17a6b689afda0b26f3b7f`. The revised standalone ZIP corrects only the hash audit and documentation; it preserves HID worker, GUI, installer, startup and Gamescope code. Audit was tested offline against the exact exported patch sources; Rust build and physical hardware tests remain pending.
