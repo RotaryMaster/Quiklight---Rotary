@@ -40,3 +40,22 @@ Código local: `~/Projetos/QuikLight-Figma-Stage02-v0.4/gui/backend_io.py`.
 
 ## Fontes do registro
 Saídas locais fornecidas pelo mantenedor em 2026-11-21: leituras TOML com `tomllib`, trechos de `backend_io.py` e `full_ui.py`, estado `systemctl --user show quiklight.service` e busca de fontes Rust. Nenhuma alteração de hardware ou serviço foi efetuada durante estas leituras.
+
+
+## Atualização: código Rust analisado e Stage 02 v0.5.1 experimental preparado
+
+**Base examinada:** fontes do arquivo `QuikLight-Stage02-v05-FONTES.zip`, diretório `Backend-Rust-v0351/src/`. Não foi demonstrada equivalência binária entre estes fontes e o executável instalado na máquina do usuário.
+
+**Causa lógica da direção:** `capture.rs` usa `let j = if s.reverse { n - 1 - i } else { i };` para amostrar uma borda em ordem inversa. A função `multi_strip::map_output` usa `start_led` como posição física e escreve `out[d][first+i]`, sem uma segunda inversão para segmentos independentes. Portanto, `reverse=true` no lado esquerdo da fita 1 inverte **a amostragem**, não o offset físico. A orientação efetiva ainda depende do cabeamento e será validada apenas com teste em hardware.
+
+**Correções na GUI separada v0.5.1 (ainda não instaladas ou verificadas no Bazzite do mantenedor):**
+- `config_view()` agora conserva os campos completos de cada `[[segment]]`; a edição não elimina `start_led`, `enabled`, fontes, intensidade, efeitos, paleta ou campos desconhecidos.
+- `patch_config()` reescreve somente linhas de campos editados e preserva tabelas externas, perfis `[[strip]]` e campos não editados. Confere a estrutura TOML após edição, bloqueia perda de campos e valida capacidade física, conflitos, espelhamento e perfis.
+- O salvamento de presets globais foi ajustado para incluir `[[strip]]`.
+- A GUI apresenta resumo de posições por fita, permite alternar `enabled`/`source_mode` nos segmentos que os contêm e exclui segmentos desligados da prévia **genérica** das bordas.
+- Criação automática de trechos e redistribuição genérica ficam desabilitadas para mapeamento físico explícito, até existir um editor de offsets adequado.
+- Testes automatizados: **43 passaram, 1 ignorado (Qt indisponível)**. Ainda pendentes execução real da GUI PySide6, validação LED/HID, Windows e teste de equivalência do binário instalado.
+
+**Entrega experimental:** `QuikLight-Stage02-v05.1-MultiStrip-Safe-FONTES.zip` na conversa. O comando `Stage02-v0.5.1/testar-e-abrir-linux.sh` valida sintaxe e testes Python, lê a configuração ativa sem modificá-la e só então abre automaticamente a GUI em `--visual-demo`. Não substitui o backend, não reinicia o serviço nem modifica a base imutável.
+
+**Pendências principais:** testar fisicamente se `reverse=false` corrige a esquerda; diagnóstico da prévia branco/vermelho; prévia QLV3 por dispositivo físico; controles completos de 22 campos por segmento, e compatibilidade Windows testada. **Não publicar como versão estável até a validação física.**
