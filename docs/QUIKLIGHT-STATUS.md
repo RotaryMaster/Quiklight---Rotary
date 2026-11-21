@@ -1,23 +1,27 @@
-# QuikLight — estado da série MultiStrip
+# QuikLight — platform status (21 November 2026)
 
-Atualizado em 21/11/2026. Fork: RotaryMaster/rotaryopersonal.
+## Stable baseline
 
-## Baseline confirmada no Bazzite KDE
+**Bazzite KDE / Linux: v0.3.4.5 — maintainer-confirmed working.** Two physical ROBOBLOQ HID controllers (VID:PID 1A86:FE07), 65 physical LED positions each, bottom 31 active on Strip 2, real-time changes and per-segment **Independent / Mirror / Off** settings. Maintainer-confirmed in their setup, not a universal hardware certification.
 
-- **v0.3.4.4**: duas fitas em funcionamento e ajustes estruturais em Tempo Real confirmados pelo mantenedor; não equivale a validação universal ou release binária.
-- Dois controladores ROBOBLOQ HID (VID:PID 1A86:FE07), cada um com 65 posições físicas.
-- Fita 1: 17 esquerda + 31 topo + 17 direita.
-- Fita 2: 17 esquerda + 31 inferiores + 17 direita; as laterais podem ser desativadas sem reduzir a capacidade física.
-- v0.3.4.1: timeout HID e reinicializações; v0.3.4.3: isolamento por controlador relatado como funcional; v0.3.4.4: hot reload de ajustes.
-- **Windows**: implementação em desenvolvimento, sem validação física dessa revisão.
+**Windows: latest MultiStrip version validated as stable: none confirmed.** Windows is a first-class project target, but dedicated compilation, capture/HID, startup/shutdown and real hardware validation remain to be completed. Do not present Linux v0.3.4.5 as a tested Windows release.
 
-## Próximos passos (não pertencem à baseline estável)
+## Previous milestones
 
-- Fonte de cores por trecho: Independente, Espelhado e Desligado.
-- Testar explicitamente transições ao vivo, desligamento seguro e rollback.
-- Verificar as laterais da Fita 2, que foram observadas emitindo cores físicas distintas: verificar se estavam marcadas ativas e conferir a telemetria QLV3.
-- Consolidar o código-fonte completo e os módulos auxiliares em uma build reproduzível, antes de publicar uma release.
+- v0.3.4.1: initial physical offsets / QLV3 telemetry. Second controller timeout caused global restart loop.
+- v0.3.4.2: bottom profile, 17 reserved + 31 bottom + 17 reserved.
+- v0.3.4.3: HID controller isolation. Maintainer confirmed two-strip operation.
+- v0.3.4.4: live structural settings without Apply. Maintainer confirmed operation.
+- v0.3.4.5: Independent / Mirror / Off per-segment source. Maintainer confirmed this version works on Bazzite KDE.
 
-## Cuidados
+## Outstanding before publishing a release
 
-Não versionar config.toml real, dados privados, serial de hardware, dumps de sistema, logs com identificadores ou credenciais. No Bazzite imutável instalar somente na área do usuário. Não substituir uma versão funcional sem snapshot.
+- Consolidate complete buildable sources, dependency helper modules and license notices.
+- Run clean reproducible Cargo checks/tests and ensure Linux installation package, rollback and autostart have a deterministic source-of-truth.
+- Validate every matrix item on Windows and create its platform installer.
+- Review USB HID failure cases, session logout/shutdown, duplicate KDE startup entries, and hotplug.
+- Sanitize configs, file paths, IDs and logs before public upload.
+
+**Publication note:** documentation on GitHub describes an installed local baseline. A downloadable v0.3.4.5 GitHub Release is **not** claimed.
+
+See [README](../README.md) · [mapping](QUIKLIGHT-MULTISTRIP.md) · [installation](QUIKLIGHT-INSTALL.md).
