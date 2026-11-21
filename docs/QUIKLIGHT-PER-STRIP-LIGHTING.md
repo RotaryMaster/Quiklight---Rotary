@@ -34,3 +34,9 @@ The baseline **v0.3.4.5 remains the maintainer-validated stable release on Bazzi
 - [ ] Windows compile and real hardware validation completed before Windows release
 
 **Source availability:** an experimental package was provided in the conversation; the complete reproducible QuikLight Rust project and external Qt helper modules are not yet published as a self-contained GitHub Release.
+
+## v0.3.4.8 experimental extension — brightness per segment
+
+Adds `intensity` (0–100%, default 100) to each `[[segment]]`, exposed through a slider in the existing LEDs/Strips segment card. It attenuates the final physical RGB frame *after* Independent/Mirror/Off mapping, so mirrored destination segments can be dimmed separately. Applied after global/per-strip brightness and power-limiting, therefore it **does not increase** output above existing limits. Existing scene color fidelity, smoothing and USB mapping remain in place. The GUI normalization and TOML saving preserve this field, including in presets. Unlike per-strip level overrides, this is a reduction-only control.
+
+**Status:** patch prepared and Python syntax/structural checks passed; Rust compilation and physical device validation are outstanding. No stable-version promotion. The overlay must be built against the exact reviewed v0.3.4.7 sources, otherwise it aborts rather than rewriting current USB fixes. Windows is a target but unverified for this patch.
