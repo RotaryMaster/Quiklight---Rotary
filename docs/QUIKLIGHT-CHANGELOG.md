@@ -1,8 +1,24 @@
-# Histórico MultiStrip
+# QuikLight MultiStrip — changelog
 
-- **v0.3.4.4 — baseline reportada estável em Bazzite KDE:** atualização em tempo real de parâmetros e alterações estruturais sem necessidade de clicar Aplicar. Confirmado funcionamento físico das duas fitas pelo mantenedor.
-- **v0.3.4.3:** isolamento das operações HID, mitigação de timeout e desligamento bloqueante. Teste físico positivo.
-- **v0.3.4.2:** perfil da Fita 2 com 31 LEDs associados à borda inferior; detectadas falhas de inicialização conjunta do backend antigo.
-- **v0.3.4.1:** suporte inicial ao mapeamento físico multistrip, telemetria e offsets; timeout durante inicialização HID.
+## v0.3.4.5 — stable on Bazzite KDE (maintainer-confirmed, 2026-11-21)
+- Per-segment source: Independent samples the screen edge; Mirror copies an independent source segment's RGB; Off outputs black without changing physical slots.
+- Works with v0.3.4.4 real-time configuration in the maintainer's two-controller setup.
+- Windows status remains experimental / **not hardware-validated**. Not a published GitHub Release.
 
-Próxima revisão: modos de captura Independente / Espelhado / Desligado por trecho, em branch experimental. Não faz parte da stable até nova validação. Versões locais aqui documentadas não equivalem a GitHub Releases publicadas ou a compatibilidade Windows comprovada.
+## v0.3.4.4 — real-time baseline
+- Live application of structural mapping and capture changes.
+- Two physical strips verified.
+
+## v0.3.4.3 — independent HID operations
+- Addressed global service restart caused by second controller HID timeout.
+- Two-strip hardware operation confirmed in maintainer's setup.
+
+## v0.3.4.2 — bottom profile
+- Creates a second 65-position strip: 17 reserved, 31 mapped to bottom edge, 17 reserved.
+- Startup timeout found in original device initialization.
+
+## v0.3.4.1 — initial MultiStrip
+- Physical LED offsets and QLV3 physical RGB telemetry.
+- Failed initialization of one device previously ended the entire process.
+
+These are locally tested development revisions, **not equivalent to Windows compatibility certification** or published GitHub Releases.
