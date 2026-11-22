@@ -131,3 +131,16 @@ Branch histórica \`quiklight-x11-windows\`, arquivo \`quiklight-x11/gui/quiklig
 - Regressão Qt/offscreen, TOML, Rust, KDE↔Gamescope, rollback, e matriz Windows **separada** antes de afirmar paridade.
 
 **Status desta seção:** especificação e evidência histórica analisadas; correções de GUI/back-end ainda pendentes, **nenhuma alteração no runtime instalada**.
+
+## Implementação iniciada — telemetria e medidor musical
+
+Arquivos criados na branch experimental, mas **ainda não ligados ao `gui/full_ui.py` real**:
+
+- `experimental/stage02-v054/music_telemetry.py`: leitura validada de cinco canais de `quiklight-audio.txt`, detecção de stale, pedido controlado de `quiklight-audio.want`, limites e cores distintas.
+- `experimental/stage02-v054/music_meter_widget.py`: Qt com cinco barras de cores diferentes, alças mínimo/máximo por canal de entrada, toggles por canal e quinta barra de reação somente leitura. Não grava TOML nem aciona serviço.
+- `experimental/stage02-v054/tests/test_music_telemetry.py`: testes puros de parsing, ausência de dados, throttling e limites.
+- `.github/workflows/stage02-v054-checks.yml`: workflow com sintaxe e testes puros. Primeira execução passou: https://github.com/RotaryMaster/Quiklight---Rotary/actions/runs/44969420256.
+
+Para integrar com rigor os handlers existentes, é necessário publicar a fonte exata v0.5.3 na branch, sem publicar configuração ativa nem dados privados. `tools/publicar-fontes-stage02-v053.py` verifica o SHA256 do ZIP, seleciona somente fontes não sensíveis e publica no prefixo `experimental/stage02-v053-source/` via clone temporário. Se o Git local não tiver credenciais, a publicação falhará sem mudar a instalação nem fazer force-push.
+
+**Próxima implementação após sincronização:** verificar bindings de Recorte/Bordas, separar comandos Ligar/Desligar do Apply, habilitar Tempo real para mudanças seguras com indicação de pendências estruturais e integrar o medidor de música na GUI atual sem redesenho. Testar com TOML sintético e snapshots antes de ativar no hardware. Não há release estável nesta etapa.
