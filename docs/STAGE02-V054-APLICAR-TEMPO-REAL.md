@@ -62,3 +62,13 @@ Arquivo: `tools/testar-stage02-v054-funcional.py`.
 O lançador valida a identidade SHA256 da v0.5.3, extrai o pacote **somente** para a pasta experimental `~/Projetos/quiklight-glass-teste/Stage02-v0.5.4-funcional`, verifica sintaxe e testes Python, salva um backup privado da configuração física e somente então abre `iniciar-linux.sh` **sem** `--visual-demo`. Não substitui Rust, serviço, GUI instalada, atalhos nem configurações sozinho. Ativar Tempo real ou clicar Aplicar dentro da GUI funcional é uma ação operacional real, com efeito potencial no controlador; primeiro testar parâmetros não estruturais e manter restauração disponível. Nenhum resultado prático desse ensaio foi obtido ainda.
 
 **Importante:** este helper habilita um **ensaio funcional sobre os fontes v0.5.3 existentes**, não implementa novos handlers nem valida o commit da configuração no hardware. A v0.5.4 continua em desenvolvimento.
+
+## Retorno do mantenedor: teste funcional Stage 02 v0.5.4 (21/11/2026)
+
+O script de lançamento v0.5.4 apenas abriu **os fontes existentes da v0.5.3 sem `--visual-demo`**. Não houve integração de novos controles nessa etapa — portanto, o ensaio realmente expôs o comportamento da implementação anterior. Não apresentar o lançador como correção concluída.
+
+**Relato físico:** Aplicar aparentemente funciona; Tempo real não afeta liga/desliga de trechos; a alteração de segmentos só aparece depois de Aplicar. Sliders produzem resposta, mas perceptível somente após soltar o mouse e com atraso. Controles de Recorte/Bordas aparecem zerados, apesar de valores anteriores presumidos. Comandos de ligar/desligar também dependem de Aplicar.
+
+**Análise com base no código já auditado:** `gui/full_ui.py:320` exclui `segment`, `mode`, `fps`, `cap_w`, `cap_h`, `capture_limit` de autoaplicação; `autosave_timer.start(650)` impõe debounce de 650 ms. Portanto, mudança de `enabled`/ `source_mode` dentro de segmento não é aplicada automaticamente. A origem dos zeros em Recorte/Bordas e a efetiva atualização durante slider ainda **não foram confirmadas**, e não devem ser atribuídas a um bug específico antes de comparar bindings Qt, `set_local`, `_commit` e TOML ativo.
+
+**Próxima verificação:** `tools/auditar-stage02-v054-runtime.py` somente lê fontes Qt/backend e parâmetros não sensíveis da configuração ativa, sem executar handlers. O objetivo é determinar com precisão a correção mínima para recuperar Tempo real sem danificar `start_led`, sem reinicialização USB indevida, e sem troca de backend ou regressão Windows.
