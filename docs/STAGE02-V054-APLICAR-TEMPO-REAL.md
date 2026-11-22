@@ -54,3 +54,11 @@ O auditor somente leitura \`tools/auditar-stage02-v053-controles.py\` examina **
 **Conclusão:** a indisponibilidade dos botões neste ensaio é consequência intencional do argumento `--visual-demo`; a auditoria não comprova falha nos handlers. Não alterar esses bloqueios para o modo visual. Para avaliação funcional, preparar fonte isolada e backup, executar testes e **abrir sem `--visual-demo`**, esclarecendo que cliques em Aplicar ou ativação de Tempo real poderão alterar o serviço e a configuração reais.
 
 **Ainda não comprovado:** segurança do caminho `_commit` herdado, comportamento dos controladores físicos durante aplicação, recuperação de falhas HID e paridade Windows. Não declarar v0.5.4 funcionalmente validada sem teste em hardware.
+
+## Próximo ensaio funcional (ferramenta publicada)
+
+Arquivo: `tools/testar-stage02-v054-funcional.py`.
+
+O lançador valida a identidade SHA256 da v0.5.3, extrai o pacote **somente** para a pasta experimental `~/Projetos/quiklight-glass-teste/Stage02-v0.5.4-funcional`, verifica sintaxe e testes Python, salva um backup privado da configuração física e somente então abre `iniciar-linux.sh` **sem** `--visual-demo`. Não substitui Rust, serviço, GUI instalada, atalhos nem configurações sozinho. Ativar Tempo real ou clicar Aplicar dentro da GUI funcional é uma ação operacional real, com efeito potencial no controlador; primeiro testar parâmetros não estruturais e manter restauração disponível. Nenhum resultado prático desse ensaio foi obtido ainda.
+
+**Importante:** este helper habilita um **ensaio funcional sobre os fontes v0.5.3 existentes**, não implementa novos handlers nem valida o commit da configuração no hardware. A v0.5.4 continua em desenvolvimento.
