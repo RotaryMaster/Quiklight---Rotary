@@ -190,7 +190,11 @@ def main() -> int:
             raise RuntimeError("Contagem de arquivos Git diferente do esperado")
         if any(not x.startswith(DEST_PREFIX+"/") for x in modified):
             raise RuntimeError("Arquivo fora do escopo; publicação bloqueada")
-        if not run(["git","config","--get","user.name"],work,env).stdout.strip():
+        try:
+            name=run(["git","config","--get","user.name"],work,env).stdout.strip()
+        except subprocess.CalledProcessError:
+            name=""
+        if not name:
             run(["git","config","user.name","QuikLight Stage02 Source Sync"],work,env)
         try:
             email=run(["git","config","--get","user.email"],work,env).stdout.strip()
