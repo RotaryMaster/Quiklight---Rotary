@@ -93,6 +93,38 @@ def config_readonly():
         data=", ".join(f"{k}={seg.get(k,'AUSENTE')}" for k in keys)
         print(f"segmento[{i}]: {data}")
     print("Outros campos, portas USB e identificadores não exibidos.")
+    # Compare com snapshot privado criado pelo launcher; nenhum valor sensível.
+    backup_dir=home/"Projetos"/"quiklight-glass-teste"/"backups"/"Stage02-v054"
+    if backup_dir.is_dir():
+        snapshots=[p for p in backup_dir.glob("config-antes-teste-*.toml")
+                   if p.is_file() and not p.is_symlink()]
+        if snapshots:
+            snap=max(snapshots,key=lambda p:p.stat().st_mtime)
+            with snap.open("rb") as file:
+                before=tomllib.load(file)
+            print("\n=== COMPARAÇÃO COM BACKUP PRÉ-TESTE (SOMENTE LEITURA) ===")
+            print("Backup:",snap.name)
+            for k in keys:
+                old,new=before.get(k,"AUSENTE"),cfg.get(k,"AUSENTE")
+                if old!=new and all(isinstance(v,(int,float,bool)) or
+                                     v=="AUSENTE" or (k in ("mode","color_mode")
+                                     and isinstance(v,str)) for v in (old,new)):
+                    print(f"ALTERADO {k}: {old} -> {new}")
+            oldsegs=before.get("segment",[])
+            if oldsegs!=segs:
+                print("ALERTA: diferenças em [[segment]] desde o backup pré-teste")
+                print(f"Contagens: backup={len(oldsegs)}, atual={len(segs)}")
+                for i,(o,n) in enumerate(zip(oldsegs,segs)):
+                    for key in ("device","edge","start_led","leds",
+                                "enabled","source_mode","reverse"):
+                        if o.get(key)!=n.get(key):
+                            print(f"segmento[{i}].{key}: "
+                                  f"{o.get(key,'AUSENTE')} -> {n.get(key,'AUSENTE')}")
+            elif before==cfg:
+                print("Backup e configuração ativa têm os mesmos valores TOML.")
+        else:
+            print("Nenhum backup pré-teste encontrado para comparar.")
+
 
 def main():
     print("=== QUIKLIGHT STAGE02 — ESTADO REAL DE CONTROLES ===")
