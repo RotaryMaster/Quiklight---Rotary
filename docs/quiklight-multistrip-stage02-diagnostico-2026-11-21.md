@@ -72,3 +72,19 @@ Saídas locais fornecidas pelo mantenedor em 2026-11-21: leituras TOML com `toml
 **Entrega:** `QuikLight-Stage02-v05.2-MultiStrip-QLV3-FONTES.zip` entregue na conversa, SHA256 `f31fe643f211dfbfcbc9def0c2103999ddf9e0fb644df66a18692592365c59bd`. Seu script `testar-e-abrir-linux.sh` valida testes/configuração, remove **apenas ZIPs antigos da família Stage02** presentes em Downloads depois de reconhecer o ZIP atual, e abre a GUI experimental. `iniciar-linux.sh` tem permissão executável e é chamado explicitamente com Bash. Nenhuma alteração foi feita no serviço QuikLight ativo por esta análise.
 
 **Pendências:** teste visual de renderização Qt, confirmação física da direção esquerda (`reverse=true`), verificação da anomalia branco/vermelho, controle completo de perfis na Stage 02 e compatibilidade Windows.
+
+
+## Atualização — Stage 02 v0.5.3 experimental (fluidez e proteção da roda do mouse)
+
+O mantenedor confirmou no Bazzite KDE que a prévia QLV3 da v0.5.2 recebe cores reais, mas exibe atraso e travamentos. Solicitou também que a roda do mouse **não altere valores das opções**, incluindo listas suspensas, campos numéricos e sliders.
+
+O pacote experimental `QuikLight-Stage02-v05.3-MultiStrip-QLV3-Fluido-FONTES.zip` implementa:
+- `live_timer` preciso a cada **70 ms**, versus 350 ms na v0.5.2. O backend v0.3.5.1 continua a produzir QLV3 aproximadamente a cada 100 ms; **polling mais rápido não garante taxa de quadros superior à disponibilizada pelo serviço**.
+- `QLV3Watcher` com cache por assinatura (inode, mtime_ns, tamanho), evitando leituras/decodificações quando não há novo frame, invalidação de quadros antigos e redesenho somente quando a sequência muda; pedido de telemetria renovado em 1,5 s.
+- Mensagem de taxa de atualização efetiva da **prévia**, não de captura USB ou tela.
+- `gui/wheel_guard.py`: filtro global de eventos Qt para `QComboBox`, `QAbstractSpinBox`, `QSlider`, `QDial` e editores internos; redireciona evento de roda para o `QScrollArea` ancestral sem alterar valor. A rolagem na lista suspensa **aberta**, teclado, clique e arraste continuam naturais. Regra vale também para controles herdados da Stage 01.
+- Script de teste prefere o ambiente Python existente com PySide6 para executar *também* os testes visuais `offscreen` antes de iniciar a GUI normal, sem alterar a base imutável. Limpeza de ZIPs antigos restrita à família Stage02, após testes aprovados e identificação do ZIP atual.
+
+**Validação local do pacote:** 57 testes descobertos, 52 executados e aprovados, 5 ignorados por falta de PySide6 no ambiente de empacotamento (os ignorados são de Qt). Scripts verificados com `bash -n`, ZIP íntegro, executáveis Linux em modo 0755. SHA256: `0417444af2a9e060ed1b65e9a3968f0ffeaaa6aa30a2b07ad07b295adb3f5ea2`.
+
+**Não instalado nem validado no Bazzite do mantenedor; ainda experimental.** Não modifica serviço ou configuração Rust e não prova paridade Windows.
