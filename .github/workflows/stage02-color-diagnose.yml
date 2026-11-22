@@ -1,0 +1,34 @@
+name: Stage02 color diagnosis - syntax and offline RGB test
+on:
+  push:
+    branches: [feature/stage02-v054-apply-realtime]
+    paths:
+      - 'tools/diagnosticar-cor-inferior-qlv3.py'
+      - '.github/workflows/stage02-color-diagnose.yml'
+  workflow_dispatch:
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Compile the diagnostic
+        run: python -m py_compile tools/diagnosticar-cor-inferior-qlv3.py
+      - name: Test legacy frame grouping without hardware
+        run: |
+          python - <<'PY'
+          import importlib.util
+          path = 'tools/diagnosticar-cor-inferior-qlv3.py'
+          spec = importlib.util.spec_from_file_location('color_diag', path)
+          mod = importlib.util.module_from_spec(spec)
+          spec.loader.exec_module(mod)
+          frame = bytes([8, 19, 7, 30, 9, 4, 100, 20, 80])
+          result = mod.samples_by_device(frame, [2, 1])
+          assert result == [[(8,19,7),(30,9,4)], [(100,20,80)]], result
+          assert mod.samples_by_device(frame, [5]) is None
+          print('offline RGB grouping: OK')
+          PY
