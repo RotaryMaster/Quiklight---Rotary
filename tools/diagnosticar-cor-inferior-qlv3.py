@@ -121,7 +121,7 @@ def report_rgb(rows, cfg):
     for i, row in enumerate(rows):
         if not row:
             continue
-        med = tuple(round(statistics.mean(px[k]) for px in row), 1)
+        med = tuple(round(statistics.mean(px[k] for px in row), 1)
                     for k in range(3))
         print(f"Fita {i+1}: LEDs físicos={len(row)} média RGB={med}")
     for i, seg in enumerate(cfg.get("segment", [])):
