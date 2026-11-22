@@ -38,3 +38,19 @@ O auditor somente leitura \`tools/auditar-stage02-v053-controles.py\` examina **
 - Só então preparar procedimento explícito de ativação + backup + rollback e solicitar validação de hardware.
 
 **Não é uma release estável e não contém ainda uma correção funcional dos botões.**
+
+## Diagnóstico confirmado pela auditoria executada pelo mantenedor
+
+**Fonte exata auditada:** `QuikLight-Stage02-v05.3-MultiStrip-QLV3-Fluido-FONTES.zip` (SHA256: `0417444af2a9e060ed1b65e9a3968f0ffeaaa6aa30a2b07ad07b295adb3f5ea2`).
+
+- `testar-e-abrir-linux.sh:49` executa `iniciar-linux.sh --visual-demo`.
+- `gui/full_ui.py:319` determina `self.apply.setEnabled(self.pending and not self.visual_demo)`.
+- `gui/full_ui.py:534-537` recusa habilitar Tempo real no modo visual.
+- `gui/full_ui.py:551-558` encaminha Aplicar a uma confirmação e `self._commit`.
+- `gui/full_ui.py:546-550` contém salvamento automático após debounce; modo visual também o bloqueia.
+- `gui/full_ui.py:270,276` conecta os sinais Qt de Aplicar e Tempo real aos handlers.
+- `gui/backend_io.py:266-328` implementa patch TOML com preservação e validação de `[[segment]]`.
+
+**Conclusão:** a indisponibilidade dos botões neste ensaio é consequência intencional do argumento `--visual-demo`; a auditoria não comprova falha nos handlers. Não alterar esses bloqueios para o modo visual. Para avaliação funcional, preparar fonte isolada e backup, executar testes e **abrir sem `--visual-demo`**, esclarecendo que cliques em Aplicar ou ativação de Tempo real poderão alterar o serviço e a configuração reais.
+
+**Ainda não comprovado:** segurança do caminho `_commit` herdado, comportamento dos controladores físicos durante aplicação, recuperação de falhas HID e paridade Windows. Não declarar v0.5.4 funcionalmente validada sem teste em hardware.
