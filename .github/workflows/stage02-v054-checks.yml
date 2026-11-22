@@ -1,0 +1,24 @@
+name: Stage02 v0.5.4 - audio component checks
+on:
+  push:
+    branches:
+      - feature/stage02-v054-apply-realtime
+    paths:
+      - 'experimental/stage02-v054/**'
+      - '.github/workflows/stage02-v054-checks.yml'
+  workflow_dispatch:
+
+jobs:
+  audio-tests:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Syntax
+        run: python -m compileall -q experimental/stage02-v054
+      - name: Pure Python unit tests (no Qt or hardware)
+        run: python -m unittest discover -s experimental/stage02-v054/tests -v
