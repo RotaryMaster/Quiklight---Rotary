@@ -73,11 +73,11 @@ def config_readonly():
         return
     with config.open("rb") as file:
         cfg=tomllib.load(file)
-    keys=("auto_crop","crop_speed","border","cap_w","cap_h","fps",
+    capture_keys=("auto_crop","crop_speed","border","cap_w","cap_h","fps",
           "capture_limit","inset_left","inset_top","inset_right",
           "inset_bottom","zone_depth","brightness","smoothing",
           "mode","color_mode")
-    for k in keys:
+    for k in capture_keys:
         val=cfg.get(k,"AUSENTE")
         if val=="AUSENTE" or isinstance(val,(int,float,bool)) or (
              isinstance(val,str) and k in ("mode","color_mode")):
@@ -88,9 +88,9 @@ def config_readonly():
     for i,seg in enumerate(segs[:25]):
         if not isinstance(seg,dict):
             continue
-        keys=("device","edge","start_led","leds","enabled",
+        segment_keys=("device","edge","start_led","leds","enabled",
               "source_mode","reverse")
-        data=", ".join(f"{k}={seg.get(k,'AUSENTE')}" for k in keys)
+        data=", ".join(f"{k}={seg.get(k,'AUSENTE')}" for k in segment_keys)
         print(f"segmento[{i}]: {data}")
     print("Outros campos, portas USB e identificadores não exibidos.")
     # Compare com snapshot privado criado pelo launcher; nenhum valor sensível.
@@ -104,7 +104,7 @@ def config_readonly():
                 before=tomllib.load(file)
             print("\n=== COMPARAÇÃO COM BACKUP PRÉ-TESTE (SOMENTE LEITURA) ===")
             print("Backup:",snap.name)
-            for k in keys:
+            for k in capture_keys:
                 old,new=before.get(k,"AUSENTE"),cfg.get(k,"AUSENTE")
                 if old!=new and all(isinstance(v,(int,float,bool)) or
                                      v=="AUSENTE" or (k in ("mode","color_mode")
