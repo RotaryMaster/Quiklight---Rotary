@@ -130,3 +130,7 @@ See [Automation/Simracing technical plan](docs/QUIKLIGHT-V0352-AUTOMATIONS-SIMRA
 [Platform status](docs/QUIKLIGHT-STATUS.md) · [Installation](docs/QUIKLIGHT-INSTALL.md) · [History](docs/QUIKLIGHT-CHANGELOG.md) · [USB identity and flashes](docs/QUIKLIGHT-USB-IDENTITY-FLASH.md) · [v0.3.5.1 REV and diagnostics](docs/QUIKLIGHT-V0351-REV-FLASH.md) · [Issue tracker](https://github.com/RotaryMaster/rotaryopersonal/issues/1).
 
 This is a community fork. Preserve upstream copyright/license attribution, avoid publishing private configs/IDs and use reversible, explicit installs only.
+
+## Session recovery update — 23 November 2026
+
+The maintainer reports the v28 patch resolved KDE ↔ Gamescope switching on Bazzite. It replaces the legacy stacked session drop-ins with `50-sessao-v28.conf` and forces complete process restart on compositor change. See [v28 session recovery and calibration findings](docs/QUIKLIGHT-SESSION-V28.md). This is a local fix, not a standalone release or Windows validation. Earlier session-drop-in descriptions above are historical for pre-v28 installations.
