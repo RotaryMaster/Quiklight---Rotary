@@ -43,3 +43,7 @@ The maintainer reports **QuikLight v0.3.5.1 is working well on Bazzite KDE** wit
 ## HID reliability incident — 21 November 2026
 
 The maintainer reports Fita 2 stuck in yellow after a left-edge Reverse UI change; `quiklight.service` stays active, physical USB Fita 2 remains enumerated (`usb-0000:02:00.0-6.1`, `/dev/hidraw6`), but HID initialization times out repeatedly with `ETIMEDOUT (os error 110)` ~every 5 s. `fuser` reports only the QuikLight process using the device; kernel log snapshot shows no USB disconnect/reset evidence. Reverse action causality **not established**. Controlled manual recovery is pending: stop service, power-cycle only the affected controller safely, restart, inspect logs and physical LED output. **Do not promote experimental v0.3.5.2 over an unrecovered controller**. [Issue #2](https://github.com/RotaryMaster/rotaryopersonal/issues/2).
+
+## Session recovery v28 — 23 November 2026
+
+Maintainer reports KDE ↔ Gamescope transition issue resolved using the Claude-provided v28 patch. The five stacked drop-ins are replaced by a single session override; the installed binary is rebuilt from an isolated source copy. See [implementation, limitations and regression requirements](QUIKLIGHT-SESSION-V28.md). Earlier instructions preserving legacy drop-ins apply only to pre-v28 systems. Individual calibration resolved the dark-green/red-bottom color mismatch; white flashes remain a separate unresolved issue. Windows and complete v0.3.5.2 automation/telemetry validation remain pending.
