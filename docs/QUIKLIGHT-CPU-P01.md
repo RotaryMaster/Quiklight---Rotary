@@ -20,3 +20,6 @@ In main.rs, MonitorWatch evaluated capture::kde_session_active() before the two-
 
 ## Status
 P01 installed, physical regression pending: both strips and color response, KDE → Gaming → KDE, monitor topology change. No new Windows or standalone release validation. Do not infer measured delivered frame rate from configuration. Keep the original v28 binary/source and generated rollback script. Future optimization should preserve rendering semantics and measure before/after; do not lower quality to hide waste.
+
+## Consolidation decision
+Maintainer selected P01 as provisional working baseline. Retain original v28 and optimized P01 binaries, checksummed, for reversible application-level switching without changing configuration or service drop-ins. Existing full-version history remains separate. GUI integration and physical regression tests are pending local validation. Do not label this a published stable release.
