@@ -31,3 +31,9 @@
 - Failed initialization of one device previously ended the entire process.
 
 These are locally tested development revisions, **not equivalent to Windows compatibility certification** or published GitHub Releases.
+
+## v28 session fix — 2026-11-23 (local maintainer-confirmed correction)
+- Ignore zombie compositors, interrupt portal waiting on KDE exit, pin process to startup compositor, prevent cross-session capture adoption and force systemd restart with blackout.
+- Consolidate session drop-ins and wait for live compositor before restart.
+- Document individual calibration correction for dark green rendered red on lower LEDs.
+- [Technical details and rollback caveats](QUIKLIGHT-SESSION-V28.md). No standalone release or Windows certification claimed.
